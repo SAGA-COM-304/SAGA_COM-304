@@ -5,3 +5,6 @@
 [Overleaf Project](https://www.overleaf.com/read/brbpqrkfsnmn#35fa19)
 
 [Conventional Commits rules](https://www.conventionalcommits.org/en/v1.0.0/)
+
+git fetch origin
+git checkout 4-test
