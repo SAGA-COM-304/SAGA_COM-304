@@ -1,15 +1,13 @@
 # Setup
 ## Install libraries
-### Through conda
-
+### Using conda
 ```
-conda install --file requirements.txt
-```
-
-### Through pip
-
-```
-pip install -r requirements.txt
+conda create -n saga304 python=3.10 -y
+conda activate saga304
+pip install --upgrade pip
+pip install -e .
+pip install git+https://github.com/NVIDIA/Cosmos-Tokenizer.git --no-dependencies
+python -m ipykernel install --user --name saga304 --display-name "nano4M kernel (saga304)"
 ```
 
 ## Install ffmpeg (required by pydub) 
