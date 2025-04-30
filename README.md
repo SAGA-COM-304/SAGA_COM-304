@@ -12,7 +12,7 @@ conda install --file requirements.txt
 pip install -r requirements.txt
 ```
 
-# Install ffmpeg (required by pydub) 
+## Install ffmpeg (required by pydub) 
 
 ### from conda-forge
 ```
