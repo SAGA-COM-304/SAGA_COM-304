@@ -2,7 +2,14 @@ import argparse
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from prepare import MyImageDataset
+import matplotlib.pyplot as plt
+import simpleaudio as sa  
+from prepare.data_loader import MyImageDataset
+
+#Normalisation constant
+MEAN = np.array([0.48145466, 0.4578275, 0.40821073])
+STD  = np.array([0.26862954, 0.26130258, 0.27577711])
+TARGET_SR = 16_000
 
 
 def worker_init_fn(worker_id: int):
@@ -27,6 +34,28 @@ def parse_args():
                         help="Number of DataLoader workers")
     return parser.parse_args()
 
+def show_sample(frames: torch.Tensor, audio: torch.Tensor):
+    """
+    frames: Tensor[C, T, H, W], audio: Tensor[L]
+    """
+    # Convertir en numpy et dé-normaliser
+    frames = frames.cpu().numpy().transpose(1, 2, 3, 0)  # -> [T, H, W, C]
+    num_frames = frames.shape[0]
+    fig, axes = plt.subplots(1, num_frames, figsize=(num_frames*3, 3))
+    if num_frames == 1:
+        axes = [axes]
+    for i in range(num_frames):
+        img = frames[i]
+        img = (img * STD + MEAN).clip(0, 1)
+        axes[i].imshow(img)
+        axes[i].axis('off')
+    plt.tight_layout()
+    plt.show()
+
+    # Lecture audio
+    wav = (audio.cpu().numpy() * 32767).astype(np.int16)
+    play = sa.play_buffer(wav, 1, 2, TARGET_SR)
+    play.wait_done()
 
 def main():
     """
@@ -82,7 +111,10 @@ def main():
 
     for i, batch in enumerate(loader):
         print(f"Batch {i}: frames {batch['frames'].shape}")
+        show_sample(batch['frames'][0], batch['audios'][0]) #Display only the first sample of the batch
 
 
 if __name__ == '__main__':
     main()
+
+#--data_path dataset_module/downloads --csv_file dataset_module/data/raw_data/vggs.csv --file_column video_clip_name --class_column class --batch_size 4

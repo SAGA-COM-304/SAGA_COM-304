@@ -45,7 +45,7 @@ class MyImageDataset(Dataset):
         self.size = 256
         self.num_frames = 5
         self.duration = DURATION_SEC
-        self.time_shift = 0.25
+        self.time_shift = 0.5
 
         if hard_data:
             self.transform = T.Compose([
