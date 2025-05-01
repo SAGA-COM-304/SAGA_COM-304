@@ -20,6 +20,10 @@ dependencies = [
     "opencv-python",
     "pydub",
     "yt-dlp"
+    "torch"
+    "torchvision"
+    "transformers"
+    "pillow"
 
 ]
 

@@ -1,4 +1,7 @@
 .idea
+depthnorm_env
+outputs
+rgb_cat.jpg
 *.egg-info
 outputs
 wandb

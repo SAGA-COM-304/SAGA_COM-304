@@ -1,0 +1,10 @@
+# Dependencies for the downloading part of the data-set
+numpy
+pandas
+opencv-python
+pydub
+yt-dlp
+torch
+torchvision
+transformers
+pillow
