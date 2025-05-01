@@ -32,7 +32,7 @@ save_ckpt_freq: 1000 # in millions of tokens
 # Logging
 log_wandb: True
 wandb_project: COM304_nano4M # wandb project name
-wandb_entity: adrien-bousquie-epfl # Set to your wandb username
+wandb_entity: SAGA_COM-304 # WANDB entity/team name
 wandb_run_name: auto # Set to auto to use the run_name
 
 # Model config
