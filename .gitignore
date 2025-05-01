@@ -1,6 +1,13 @@
 .idea
-nanofm.egg-info
+*.egg-info
 outputs
+wandb
+*.tar.gz
+*.jpg
+*.pyc
+.DS_Store
+__pycache__
+.ipynb_checkpoints
 
 # Local configuration files
 import4cluster.sh
