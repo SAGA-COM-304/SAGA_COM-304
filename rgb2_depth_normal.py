@@ -1,4 +1,3 @@
-
 import argparse, os, pathlib, cv2, torch, numpy as np
 from PIL import Image
 from torchvision import transforms as T
@@ -78,4 +77,4 @@ if __name__ == "__main__":
 
 #RUN WITH : python rgb2_depth_normal.py rgb_image.jpg --out_dir outputs
 
-#note : rajouter les dépendances suivant dans requirements.txt torch torchvision torchaudio transformers timm pillow opencv-python tqdm
+#TODO : rajouter les dépendances suivant dans pyproject.toml torch torchvision torchaudio transformers timm pillow opencv-python tqdm

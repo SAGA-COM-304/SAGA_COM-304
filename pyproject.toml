@@ -19,12 +19,11 @@ dependencies = [
     "pandas",
     "opencv-python",
     "pydub",
-    "yt-dlp"
-    "torch"
-    "torchvision"
-    "transformers"
+    "yt-dlp",
+    "torch",
+    "torchvision",
+    "transformers",
     "pillow"
-
 ]
 
 [project.urls]
