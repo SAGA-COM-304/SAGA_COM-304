@@ -34,25 +34,57 @@ def parse_args():
                         help="Number of DataLoader workers")
     return parser.parse_args()
 
-def show_sample(frames: torch.Tensor, audio: torch.Tensor):
+def show_sample(frames: torch.Tensor,
+                rgb: torch.Tensor,
+                depth: torch.Tensor,
+                normal: torch.Tensor,
+                audio: torch.Tensor):
     """
-    frames: Tensor[C, T, H, W], audio: Tensor[L]
+    frames: Tensor[C, T, H, W]
+    rgb:    Tensor[C, H, W]
+    depth:  Tensor[1, H, W]
+    normal: Tensor[3, H, W]
+    audio:  Tensor[L]
     """
-    # Convertir en numpy et dé-normaliser
-    frames = frames.cpu().numpy().transpose(1, 2, 3, 0)  # -> [T, H, W, C]
-    num_frames = frames.shape[0]
-    fig, axes = plt.subplots(1, num_frames, figsize=(num_frames*3, 3))
-    if num_frames == 1:
-        axes = [axes]
-    for i in range(num_frames):
-        img = frames[i]
-        img = (img * STD + MEAN).clip(0, 1)
-        axes[i].imshow(img)
-        axes[i].axis('off')
+
+    # Move to cpu numpy
+    T, C, H, W = frames.shape[1], frames.shape[0], frames.shape[2], frames.shape[3]
+    frames_np = frames.numpy().transpose(1, 2, 3, 0)  # [T, H, W, C]
+    rgb_np    = rgb.numpy().transpose(1, 2, 0)        # [H, W, C]
+    depth_np  = depth.squeeze(0).numpy()                         # [H, W]
+    normal_np = normal.numpy().transpose(1, 2, 0)     # [H, W, 3]
+
+    # Denormalize RGB for display
+    frames_np = (frames_np * STD + MEAN).clip(0, 1)
+    rgb_np    = (rgb_np    * STD + MEAN).clip(0, 1)
+
+    # Figure: one row for frames, then rgb/depth/normal
+    fig = plt.figure(figsize=(T*2, 6))
+    # Plot each of the T frames
+    for i in range(T):
+        ax = fig.add_subplot(2, T, 1 + i)
+        ax.imshow(frames_np[i])
+        ax.axis('off')
+        ax.set_title(f"Frame {i+1}")
+    # Central RGB
+    ax = fig.add_subplot(2, T, T+1)
+    ax.imshow(rgb_np)
+    ax.axis('off')
+    ax.set_title("RGB")
+    # Depth map (grayscale)
+    ax = fig.add_subplot(2, T, T+2)
+    ax.imshow(depth_np, cmap='gray')
+    ax.axis('off')
+    ax.set_title("Depth")
+    # Surface normals
+    ax = fig.add_subplot(2, T, T+3)
+    ax.imshow((normal_np + 1) / 2)  # normals in [–1,1] → map to [0,1]
+    ax.axis('off')
+    ax.set_title("Normal")
     plt.tight_layout()
     plt.show()
 
-    # Lecture audio
+    # Play audio
     wav = (audio.cpu().numpy() * 32767).astype(np.int16)
     play = sa.play_buffer(wav, 1, 2, TARGET_SR)
     play.wait_done()
@@ -90,13 +122,19 @@ def main():
 
     args = parse_args()
 
+    # device = torch.device( "cuda" if torch.cuda.is_available()
+    #                       else "mps" if torch.backends.mps.is_available()
+    #                       else "cpu"
+    # )
+
     dataset = MyImageDataset(
         data_path=args.data_path,
         csv_file=args.csv_file,
         file_column=args.file_column,
         class_column=args.class_column,
-        hard_data=args.hard_data
+        hard_data=args.hard_data,
     )
+
     print(f"Dataset size: {len(dataset)}")
 
     loader = DataLoader(
@@ -111,10 +149,10 @@ def main():
 
     for i, batch in enumerate(loader):
         print(f"Batch {i}: frames {batch['frames'].shape}")
-        show_sample(batch['frames'][0], batch['audios'][0]) #Display only the first sample of the batch
+        show_sample(batch['frames'][0], batch['rgb'][0], batch['depth'][0], batch['normal'][0], batch['audios'][0]) #Display only the first sample of the batch
 
 
 if __name__ == '__main__':
     main()
 
-#--data_path dataset_module/downloads --csv_file dataset_module/data/raw_data/vggs.csv --file_column video_clip_name --class_column class --batch_size 4
+#--data_path dataset_module/downloads --csv_file dataset_module/data/raw_data/vggss.csv --file_column video_clip_name --class_column class --batch_size 4

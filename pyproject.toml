@@ -23,7 +23,10 @@ dependencies = [
     "torch",
     "torchvision",
     "transformers",
-    "pillow"
+    "pillow",
+    "simpleaudio",
+    "torchaudio",
+    "soundfile"
 ]
 
 [project.urls]
