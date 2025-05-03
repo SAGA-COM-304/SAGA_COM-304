@@ -22,6 +22,7 @@ dependencies = [
     "yt-dlp",
     "torch",
     "torchvision",
+    "torchaudio",
     "transformers",
     "pillow",
     "notebook"
