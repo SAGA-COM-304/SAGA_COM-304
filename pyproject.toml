@@ -24,9 +24,10 @@ dependencies = [
     "torchvision",
     "transformers",
     "pillow",
-    "simpleaudio",
     "torchaudio",
-    "soundfile"
+    "jsonlines",
+    "pytube"
+
 ]
 
 [project.urls]

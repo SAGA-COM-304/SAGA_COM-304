@@ -14,6 +14,10 @@ from typing import Tuple
 TARGET_SR = 16_000
 DURATION_SEC = 3
 TARGET_LEN = TARGET_SR * DURATION_SEC
+
+MEAN = (0.48145466, 0.4578275, 0.40821073)
+STD  = (0.26862954, 0.26130258, 0.27577711)
+
 # Depth & normal models
 DEPTH_MODEL_NAME  = "depth-anything/Depth-Anything-V2-Small-hf"
 NORMAL_HUB_REPO   = "alexsax/omnidata_models"
@@ -38,13 +42,12 @@ class MyImageDataset(Dataset):
             class_column: column name for labels
             hard_data: enable stronger data augmentations
         """
-        torchaudio.set_audio_backend("soundfile")
 
         self.file_column = file_column
         self.class_column = class_column
 
-        self.video_dir = os.path.join(data_path, 'video')
-        self.audio_dir = os.path.join(data_path, 'audio')
+        self.video_dir = os.path.join(data_path, 'video_sub')
+        self.audio_dir = os.path.join(data_path, 'audio_sub')
 
         df = pd.read_csv(csv_file)
         valid = df[file_column].apply(
@@ -65,8 +68,8 @@ class MyImageDataset(Dataset):
                 T.RandomGrayscale(p=0.2),
                 T.ToTensor(),
                 T.Normalize(
-                    mean=(0.48145466, 0.4578275, 0.40821073),
-                    std=(0.26862954, 0.26130258, 0.27577711)
+                    mean=MEAN,
+                    std=STD
                 ),
                 T.RandomHorizontalFlip(),
             ])
@@ -75,14 +78,14 @@ class MyImageDataset(Dataset):
                 T.Resize((self.size, self.size), T.InterpolationMode.BICUBIC),
                 T.ToTensor(),
                 T.Normalize(
-                    mean=(0.48145466, 0.4578275, 0.40821073),
-                    std=(0.26862954, 0.26130258, 0.27577711)
+                    mean=MEAN,
+                    std=STD
                 ),
             ])
         
         self.device = device
 
-        self.depth_proc  = AutoImageProcessor.from_pretrained(DEPTH_MODEL_NAME)
+        self.depth_proc  = AutoImageProcessor.from_pretrained(DEPTH_MODEL_NAME, use_fast=True)
         self.depth_model  = None     # will be lazy-loaded in each worker
         self.normal_model = None
         self.normal_tf = T.Compose([
@@ -170,14 +173,16 @@ class MyImageDataset(Dataset):
             inp = self.depth_proc(images=pil_central, return_tensors='pt').to(self.device)
             depth_pred = self.depth_model(**inp).predicted_depth[0]
         depth = F.interpolate(depth_pred.unsqueeze(0).unsqueeze(0), size=(self.size, self.size), mode='bilinear', align_corners=False).squeeze(0)
-        depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8).cpu()
+        depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
+        depth = depth.cpu()
 
         # normals
         with torch.no_grad():
             nin = self.normal_tf(pil_central).unsqueeze(0).to(self.device)
             nout = self.normal_model(nin)[0]
         n = nout / (nout.norm(dim=0, keepdim=True) + 1e-8)
-        normal = F.interpolate(n.unsqueeze(0), size=(self.size, self.size), mode='bilinear', align_corners=False).squeeze(0).cpu()
+        normal = F.interpolate(n.unsqueeze(0), size=(self.size, self.size), mode='bilinear', align_corners=False).squeeze(0)
+        normal = normal.cpu()
 
         # Load and process audio
         wav, sr = torchaudio.load(os.path.join(self.audio_dir, f'{name}.wav'))
@@ -202,3 +207,4 @@ class MyImageDataset(Dataset):
         }
 
 
+#TODO : Prendre en compte Audio pas en Mono + Pas sampler a un rate precis

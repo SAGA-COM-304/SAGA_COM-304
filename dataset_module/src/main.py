@@ -3,7 +3,15 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-import simpleaudio as sa  
+import torch.multiprocessing as mp
+
+try:
+    import simpleaudio as sa
+    AUDIO_PLAYBACK_AVAILABLE = True
+except ImportError:
+    AUDIO_PLAYBACK_AVAILABLE = False
+
+
 from prepare.data_loader import MyImageDataset
 
 #Normalisation constant
@@ -85,9 +93,15 @@ def show_sample(frames: torch.Tensor,
     plt.show()
 
     # Play audio
-    wav = (audio.cpu().numpy() * 32767).astype(np.int16)
-    play = sa.play_buffer(wav, 1, 2, TARGET_SR)
-    play.wait_done()
+    if AUDIO_PLAYBACK_AVAILABLE:
+        try:
+            wav = (audio.cpu().numpy() * 32767).astype(np.int16)
+            play = sa.play_buffer(wav, 1, 2, TARGET_SR)
+            play.wait_done()
+        except Exception as e:
+            print("Audio playback failed:", e)
+    else:
+        print("Audio playback skipped (simpleaudio not available)")
 
 def main():
     """
@@ -122,10 +136,10 @@ def main():
 
     args = parse_args()
 
-    # device = torch.device( "cuda" if torch.cuda.is_available()
-    #                       else "mps" if torch.backends.mps.is_available()
-    #                       else "cpu"
-    # )
+    device = torch.device( "cuda" if torch.cuda.is_available()
+                          else "mps" if torch.backends.mps.is_available()
+                          else "cpu"
+    )
 
     dataset = MyImageDataset(
         data_path=args.data_path,
@@ -133,6 +147,7 @@ def main():
         file_column=args.file_column,
         class_column=args.class_column,
         hard_data=args.hard_data,
+        device= device
     )
 
     print(f"Dataset size: {len(dataset)}")
@@ -142,7 +157,7 @@ def main():
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        pin_memory=True,
+        pin_memory=False,
         worker_init_fn=worker_init_fn,
         drop_last=True
     )
@@ -153,6 +168,9 @@ def main():
 
 
 if __name__ == '__main__':
+    mp.set_start_method('spawn')
     main()
 
+#--data_path dataset_module/downloads --csv_file dataset_module/data/raw_data/vggss.csv --file_column video_clip_name --class_column class --batch_size 4
+#On cluster : 
 #--data_path dataset_module/downloads --csv_file dataset_module/data/raw_data/vggss.csv --file_column video_clip_name --class_column class --batch_size 4
