@@ -23,7 +23,11 @@ dependencies = [
     "torch",
     "torchvision",
     "transformers",
-    "pillow"
+    "pillow",
+    "torchaudio",
+    "jsonlines",
+    "pytube"
+
 ]
 
 [project.urls]

@@ -40,6 +40,7 @@ from utils.youtube_utils import authenticate_pytube, download_youtube_video_usin
 # from utils.ytb_utils.hdfs_utils import hdfs_upload_files
 from pytube import innertube
 
+
 ACCOUNT_NUM = 3
 
 
@@ -272,7 +273,7 @@ class DownloadDataset():
             with open(os.path.join(self.workdir, f"error_{self.node_id}.txt"), 'a') as f:
                 f.write(f"{item['video_id']}\n")
                 # Write the UTC-0 time
-                beijing_tz = pytz.timezone('Asia/Shanghai')
+                beijing_tz = pytz.timezone('Europe/Paris')
                 # UTC time -> Beijing Time
                 now_utc = datetime.now(pytz.utc)
                 now_beijing = now_utc.astimezone(beijing_tz)
@@ -323,7 +324,7 @@ class DownloadDataset():
         for jsonl_file in self.jsonl_files:
             items.extend(self.read_items_jsonl(jsonl_file))
 
-        beijing_tz = pytz.timezone('Asia/Shanghai')
+        beijing_tz = pytz.timezone('Europe/Paris')
         # UTC time -> Beijing Time
         now_utc = datetime.now(pytz.utc)
         now_beijing = now_utc.astimezone(beijing_tz)
@@ -546,7 +547,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--node_num", type=int, default=1, help="Number of nodes")
     parser.add_argument("--node_id", type=int, default=0, help="Node ID")
-    parser.add_argument("--dataset_key", type=str, default="ytb", choices=["ytb", "hdvg", "test_hdvg", "test_ytb"], help="Dataset key")
+    parser.add_argument("--dataset_key", type=str, default="ytb", choices=["ytb", "hdvg", "test_hdvg", "test_ytb", "vgg", "debug"], help="Dataset key")
     
     parser.add_argument("--add_src_path", action='store_true', help="Add source filepath to the metadata csv files")
     parser.add_argument("--start_from", type=int, default=0, help="Start from which token file")
@@ -570,6 +571,8 @@ if __name__ == "__main__":
     dataset_csv_map = {
         "ytb": "data/ytb_600k_720p.csv",
         "hdvg": "data/hdvg_300k_720p.csv",
+        "vgg":    "dataset_module/data/processed_data/batch_vggsound/vggsound_part1.csv",
+        "debug" : "dataset_module/data/processed_data/random_sample_100.csv"
         # We do not provide downloading script for webvid data, see explaination in the README.md
     }
 
