@@ -6,7 +6,7 @@ trap '' ERR   # Don’t exit on first failure
 # download_videos_rr.sh
 #
 # Usage:
-#   ./download_videos_rr.sh <CSV_FILE> <OUT_DIR> [JOBS] [BATCH_IDX]
+#   bash download_RR.sh <CSV_FILE> <OUT_DIR> [JOBS] [BATCH_IDX]
 #
 #   CSV_FILE   : annotation CSV (header; clip names in first column)
 #   OUT_DIR    : output directory for segments
@@ -97,7 +97,7 @@ process_line() {
   ffmpeg -loglevel error \
     -ss "$start_sec" -i "$url" \
     -map 0:v -c:v h264_videotoolbox -b:v 1800k -t "$DURATION" -an "$mp4_path" \
-    -map 0:a -c:a pcm_s16le -ar 16000 -ac 1 -t "$DURATION" "$wav_path"
+    -map 0:a -c:a pcm_s16le -ar 24000 -ac 1 -t "$DURATION" "$wav_path"
 
 }
 
