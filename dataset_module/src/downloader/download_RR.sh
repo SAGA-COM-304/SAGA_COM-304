@@ -6,7 +6,7 @@ trap '' ERR   # Don’t exit on first failure
 # download_videos_rr.sh
 #
 # Usage:
-#   ./download_videos_rr.sh <CSV_FILE> <OUT_DIR> [JOBS]
+#   ./download_videos_rr.sh <CSV_FILE> <OUT_DIR> [JOBS] [BATCH_IDX]
 #
 #   CSV_FILE   : annotation CSV (header; clip names in first column)
 #   OUT_DIR    : output directory for segments
