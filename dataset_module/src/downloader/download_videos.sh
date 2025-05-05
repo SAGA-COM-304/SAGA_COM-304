@@ -16,7 +16,7 @@ trap '' ERR   # Don’t exit on first failure
 CSV_FILE="${1:?Please provide path to CSV_FILE}"
 OUT_DIR="${2:?Please provide an output directory}"
 JOBS="${3:-4}"
-DURATION=3  # seconds
+DURATION=5  # seconds
 LOG_FILE="$OUT_DIR/log_file.log"
 
 VIDEO_DIR="$OUT_DIR/video"

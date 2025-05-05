@@ -237,27 +237,24 @@ class YouTube:
 
     @property
     def vid_info(self):
-        """Parse the raw vid info and return the parsed result.
-
-        :rtype: Dict[Any, Any]
-        """
         if self._vid_info:
             return self._vid_info
 
         innertube = InnerTube(
-                    use_oauth=self.use_oauth, 
-                    allow_cache=self.allow_oauth_cache,
-                    toekn_file_idx=self.token_file_idx,
-                    )
-
+            client='WEB',
+            use_oauth=self.use_oauth,
+            allow_cache=self.allow_oauth_cache,
+            toekn_file_idx=self.token_file_idx,
+        )
         innertube_response = innertube.player(self.video_id)
         self._vid_info = innertube_response
         return self._vid_info
 
+
     def bypass_age_gate(self):
         """Attempt to update the vid_info by bypassing the age gate."""
         innertube = InnerTube(
-            client='ANDROID_EMBED',
+            client='WEB_EMBED',
             use_oauth=self.use_oauth,
             allow_cache=self.allow_oauth_cache,
             toekn_file_idx=self.token_file_idx,

@@ -6,6 +6,7 @@ the useful information for the end user.
 """
 # Native python imports
 import json
+from google_auth_oauthlib.flow import InstalledAppFlow
 import os
 import pathlib
 import time
@@ -312,48 +313,67 @@ class InnerTube:
         self.expires = start_time + response_data['expires_in']
         self.cache_tokens()
 
+    # def fetch_bearer_token(self):
+    #     """Fetch an OAuth token."""
+    #     # Subtracting 30 seconds is arbitrary to avoid potential time discrepencies
+    #     start_time = int(time.time() - 30)
+    #     data = {
+    #         'client_id': _client_id,
+    #         'scope': 'https://www.googleapis.com/auth/youtube'
+    #     }
+    #     response = request._execute_request(
+    #         'https://oauth2.googleapis.com/device/code',
+    #         'POST',
+    #         headers={
+    #             'Content-Type': 'application/json'
+    #         },
+    #         data=data
+    #     )
+    #     response_data = json.loads(response.read())
+    #     verification_url = response_data['verification_url']
+    #     user_code = response_data['user_code']
+    #     print(f'Please open {verification_url} and input code {user_code}')
+    #     input('Press enter when you have completed this step.')
+
+    #     data = {
+    #         'client_id': _client_id,
+    #         'client_secret': _client_secret,
+    #         'device_code': response_data['device_code'],
+    #         'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'
+    #     }
+    #     response = request._execute_request(
+    #         'https://oauth2.googleapis.com/token',
+    #         'POST',
+    #         headers={
+    #             'Content-Type': 'application/json'
+    #         },
+    #         data=data
+    #     )
+    #     response_data = json.loads(response.read())
+
+    #     self.access_token = response_data['access_token']
+    #     self.refresh_token = response_data['refresh_token']
+    #     self.expires = start_time + response_data['expires_in']
+    #     self.cache_tokens()
     def fetch_bearer_token(self):
-        """Fetch an OAuth token."""
-        # Subtracting 30 seconds is arbitrary to avoid potential time discrepencies
-        start_time = int(time.time() - 30)
-        data = {
-            'client_id': _client_id,
-            'scope': 'https://www.googleapis.com/auth/youtube'
-        }
-        response = request._execute_request(
-            'https://oauth2.googleapis.com/device/code',
-            'POST',
-            headers={
-                'Content-Type': 'application/json'
-            },
-            data=data
+        """Fetch an OAuth token via local web server flow."""
+        # chemin vers ton client_secrets.json
+        secrets_path = os.path.join(_cache_dir, "client_secrets.json")
+        # Créer le flow
+        flow = InstalledAppFlow.from_client_secrets_file(
+            secrets_path,
+            scopes=["https://www.googleapis.com/auth/youtube.readonly"],
         )
-        response_data = json.loads(response.read())
-        verification_url = response_data['verification_url']
-        user_code = response_data['user_code']
-        print(f'Please open {verification_url} and input code {user_code}')
-        input('Press enter when you have completed this step.')
-
-        data = {
-            'client_id': _client_id,
-            'client_secret': _client_secret,
-            'device_code': response_data['device_code'],
-            'grant_type': 'urn:ietf:params:oauth:grant-type:device_code'
-        }
-        response = request._execute_request(
-            'https://oauth2.googleapis.com/token',
-            'POST',
-            headers={
-                'Content-Type': 'application/json'
-            },
-            data=data
-        )
-        response_data = json.loads(response.read())
-
-        self.access_token = response_data['access_token']
-        self.refresh_token = response_data['refresh_token']
-        self.expires = start_time + response_data['expires_in']
+        # Ouvre le navigateur, écoute le redirect sur localhost
+        creds = flow.run_local_server(port=0)
+        # Récupère token + refresh + expiry
+        self.access_token  = creds.token
+        self.refresh_token = creds.refresh_token
+        # fixe l’expiration en epoch
+        self.expires       = int(time.time()) + int(creds.expiry.timestamp() - time.time())
+        # et sauvegarde-les pour la prochaine fois
         self.cache_tokens()
+
 
     @property
     def base_url(self):
@@ -377,26 +397,27 @@ class InnerTube:
         }
 
     def _call_api(self, endpoint, query, data):
-        """Make a request to a given endpoint with the provided query parameters and data."""
-        # Remove the API key if oauth is being used.
-        if self.use_oauth:
-            del query['key']
-
+        """
+        Make a request to a given endpoint with the provided query parameters and data.
+        On garde toujours la clé API car l'API interne youtubei/v1 en a besoin,
+        et on ajoute en plus le Bearer token s'il existe.
+        """
         endpoint_url = f'{endpoint}?{parse.urlencode(query)}'
         headers = {
             'Content-Type': 'application/json',
         }
-        # Add the bearer token if applicable
+        # Si OAuth activé, on récupère ou rafraîchit le token et on l'ajoute en header
         if self.use_oauth:
             if self.access_token:
                 self.refresh_bearer_token()
-                headers['Authorization'] = f'Bearer {self.access_token}'
             else:
                 self.fetch_bearer_token()
-                headers['Authorization'] = f'Bearer {self.access_token}'
+            headers['Authorization'] = f'Bearer {self.access_token}'
 
+        # Conserve aussi la partie header client (User-Agent, etc.)
         headers.update(self.header)
 
+        # Envoi de la requête POST
         response = request._execute_request(
             endpoint_url,
             'POST',
@@ -404,6 +425,7 @@ class InnerTube:
             data=data
         )
         return json.loads(response.read())
+
 
     def browse(self):
         """Make a request to the browse endpoint.
