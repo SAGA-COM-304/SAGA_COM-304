@@ -1,3 +1,4 @@
+import os
 import torch
 from PIL import Image
 from cosmos_tokenizer.image_lib import ImageTokenizer as BaseImageTokenizer
@@ -14,8 +15,10 @@ class ImageTokenizer:
         """
         self.model_name = model_name
         self.device = device
-        self.encoder = BaseImageTokenizer(checkpoint_enc=f'checkpoints/{model_name}/encoder.jit')
-        self.decoder = BaseImageTokenizer(checkpoint_dec=f'checkpoints/{model_name}/decoder.jit')
+        self.cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.cache', 'cosmos_tokenizer_checkpoints')
+        os.makedirs(self.cache_dir, exist_ok=True)
+        self.encoder = BaseImageTokenizer(checkpoint_enc=os.path.join(self.cache_dir, f'{model_name}_encoder.jit'))
+        self.decoder = BaseImageTokenizer(checkpoint_dec=os.path.join(self.cache_dir, f'{model_name}_decoder.jit'))
 
     def tokenize(self, image_path: str) -> torch.Tensor:
         """
