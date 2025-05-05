@@ -15,13 +15,13 @@ trap '' ERR   # Don’t exit on first failure
 # ------------------------------------------------------------------
 
 # ==== Round-Robin Cookie Settings ====
-COOKIE_COUNT=4           # Number of cookie files to rotate
+COOKIE_COUNT=4                                                     # Number of cookie files to rotate
 COOKIE_PREFIX="dataset_module/src/downloader/cookies/cookies"      # Base name (e.g. cookies1.txt, cookies2.txt, …)
 SEGMENTS_PER_COOKIE=500
 
 
 # PO TOKEN
-PO_TOKEN="mweb.gvs+MnRj-0HqTz-BomPDnBv42tNoQlBxN8gcybnXgsaWk_XIOUgD6ATSfwCFAEwhfTKzBCKfO-mlYHXAnYepqvosI3sHHQ8KFUzllfPIEFkA1CHsowEOX05fm1h-YIve5_W_4gwPLETDilfvFvUKBMV17erorVzQFA=="
+PO_TOKEN= ...
 # ====================================
 
 CSV_FILE="${1:?Please provide path to CSV_FILE}"
@@ -77,7 +77,6 @@ process_line() {
 
   cookie_file="${COOKIE_PREFIX}${cookie_index}.txt"
   COOKIE_OPTS="--cookies $cookie_file"
-
 
 
   # Extract direct URL ≤360p
