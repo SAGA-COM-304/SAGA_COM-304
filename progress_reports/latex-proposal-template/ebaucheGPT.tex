@@ -1,0 +1,99 @@
+\documentclass[10pt,conference,compsocconf]{IEEEtran}
+
+\usepackage{hyperref}
+\usepackage{graphicx}
+
+\begin{document}
+\title{Extending nano4M with Audio and Video Modalities}
+
+\author{
+  Sacha Godey (362191), Alexis Carreras (361573), Gabriel Taieb (360560), Adrien Bousquié (361516)\\
+  \textit{COM-304 Project Proposal}
+}
+
+\maketitle
+
+% ---------- Abstract ----------
+\begin{abstract}
+This project aims to extend the nano4M multimodal Transformer model with audio and video modalities. We propose to integrate specialized audio and video tokenizers and implement tailored masking strategies to enable high-quality generation and cross-modal synchronization. We estimate a total of approximately 150 points for these extensions, as detailed in the guidelines.
+\end{abstract}
+
+% ---------- Introduction ----------
+\section{Introduction}
+
+\subsection{What is the problem you want to solve?}
+The current nano4M model supports text and image modalities but lacks the capacity to handle audio and video data. We aim to address this limitation by integrating these complex modalities, thereby enabling multimodal tasks involving synchronized audio-video generation and enhancing multimodal reasoning capabilities.
+
+\subsection{Why is it important that this problem be solved?}
+Audio and video are essential in real-world applications like content generation, accessibility tools, and multimedia communication. Incorporating these modalities into nano4M significantly increases the practical utility and robustness of the model, making it suitable for advanced multimodal tasks such as video captioning, video-to-audio generation, and improved multimodal understanding.
+
+% ---------- Method and Deliveries ----------
+\section{Method and Deliveries}
+
+\subsection{How do you solve the problem?}
+We propose the following extensions, along with their estimated points based on project guidelines:
+
+\textbf{1. Audio modality integration (20 points):}
+Implementing an audio tokenizer based on spectrogram representations and masked audio generation inspired by MAE-AST. This includes adapting the nano4M Transformer architecture to handle spectrogram tokens and masked reconstruction.
+
+\textbf{2. Video modality integration (20 points):}
+Introducing video tokens using spatio-temporal patching methods inspired by MaskViT and MAGVIT. This involves designing a tokenizer capable of representing video sequences efficiently and adapting the Transformer architecture to model temporal dependencies.
+
+\textbf{3. Tokenization improvements for audio and video (40 points total):}
+Training specialized tokenizers separately for audio and video to optimize reconstruction performance and alignments compared to standard off-the-shelf tokenizers (20 points per modality).
+
+\textbf{4. Span-masking for sequence-like modalities (20 points):}
+Adapting nano4M to efficiently handle sequences such as audio transcripts and captions using span-masking strategies, enhancing autoregressive generation performance.
+
+\textbf{5. Super-resolution (20 points):}
+Extending the model to perform high-resolution reconstruction from low-resolution inputs, applicable to both video frames and images, to improve overall output quality.
+
+\textbf{6. Classifier-free guidance (20 points):}
+Implementing classifier-free guidance to enhance controlled multimodal generation, adding robustness and flexibility during inference.
+
+\textbf{7. Architecture modifications (10 points):}
+Integrating advanced architecture components such as RoPE and SwiGLU for better model performance and efficiency.
+
+\textbf{8. Inference strategy optimization (5 points):}
+Comparing iterative decoding versus one-pass decoding methods, experimenting with sampling strategies like top-k and nucleus sampling, and evaluating trade-offs.
+
+\begin{figure}[tbph]
+  \centering
+  \includegraphics[width=0.9\columnwidth]{example-image-a}
+  \caption{Overview of audio-video extensions for nano4M.}
+  \label{fig:av-extension}
+\end{figure}
+
+\subsection{How will you validate your solution?}
+Validation will involve quantitative and qualitative assessments:
+\begin{itemize}
+    \item Reconstruction and generation quality metrics (FID, PSNR for video, MOS scores for audio).
+    \item Synchronization quality assessment (manual and automatic alignment metrics).
+    \item Ablation studies comparing tokenizers and masking strategies.
+\end{itemize}
+
+\subsection{Expected progress by progress report}
+By the progress report, we aim to:
+\begin{itemize}
+    \item Complete audio tokenizer implementation and initial masked audio training.
+    \item Finish video tokenizer design and validate basic masked video generation.
+    \item Demonstrate preliminary synchronization mechanism results.
+\end{itemize}
+
+% ---------- Related Work ----------
+\section{Related Work}
+Our extensions build upon existing research in multimodal Transformers, specifically MAE-AST for audio \cite{MAEAST}, MaskViT \cite{MaskViT} and MAGVIT \cite{MAGVIT} for video, and approaches enhancing audio-video synchronization \cite{videotoaudio}. Unlike previous methods, our approach combines these ideas within a unified multimodal Transformer model leveraging the existing nano4M infrastructure.
+
+% ---------- Discussion ----------
+\section{Discussion}
+
+\subsection{Implications and Broader Impact}
+Successfully integrating audio and video modalities into nano4M could significantly advance multimodal AI capabilities, enabling new applications in multimedia content creation, assistive technology, and interactive systems. This extension potentially contributes to greater accessibility and improved user engagement in digital experiences.
+
+\subsection{Potential Risks and Shortcomings}
+The major risks include computational constraints due to the higher complexity of video modality and potential issues in synchronization quality. To mitigate these risks, alternative efficient Transformer architectures (e.g., FlexAttention) or downsampling strategies may be explored.
+
+\bibliographystyle{IEEEtran}
+\bibliography{literature}
+
+\end{document}

@@ -25,6 +25,9 @@ dependencies = [
     "torchaudio",
     "transformers",
     "pillow",
+    "torchaudio",
+    "jsonlines",
+    "pytube",
     "notebook"
 ]
 
