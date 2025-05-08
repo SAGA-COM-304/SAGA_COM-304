@@ -9,6 +9,8 @@ from torch.utils.data import Dataset
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 import torch.nn.functional as F
 from typing import Tuple
+import wave
+import numpy as np
 
 # Constants
 TARGET_SR = 24_000
@@ -31,6 +33,7 @@ class MyImageDataset(Dataset):
         data_path: str,
         csv_file: str,
         file_column: str = 'video_clip_name',
+        ts_column: str = 'timestamp',
         class_column: str = 'class',
         hard_data: bool = False,
         device: torch.device = torch.device('cpu')
@@ -46,13 +49,15 @@ class MyImageDataset(Dataset):
         """
         self.file_column = file_column
         self.class_column = class_column
+        self.ts_column = ts_column
 
         self.video_dir = os.path.join(data_path, 'video')
         self.audio_dir = os.path.join(data_path, 'audio')
 
         df = pd.read_csv(csv_file)
-        valid = df[file_column].apply(
-            lambda name: os.path.isfile(os.path.join(self.video_dir, f'{name}.mp4'))
+        valid = df.apply(
+            lambda row: os.path.isfile(os.path.join(self.video_dir, f"{row[file_column]}_{row[ts_column]}.mp4")),
+            axis=1
         )
         self.df = df[valid].reset_index(drop=True)
 
@@ -140,10 +145,11 @@ class MyImageDataset(Dataset):
 
         row = self.df.iloc[idx]
         name = row[self.file_column]
+        ts = row[self.ts_column]
         label = row[self.class_column]
 
         # Load and transform video frames
-        cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}.mp4'))
+        cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
         frames = []
         raw = []
         while True:
@@ -167,7 +173,6 @@ class MyImageDataset(Dataset):
 
         # depth
         with torch.no_grad():
-            print(f"[DEBUG] self.device = {self.device!r}  (type: {type(self.device)})")
             inp = self.depth_proc(images=pil_central, return_tensors='pt').to(self.device)
             depth_pred = self.depth_model(**inp).predicted_depth[0]
         depth = F.interpolate(depth_pred.unsqueeze(0).unsqueeze(0), size=(self.size, self.size), mode='bilinear',
@@ -184,9 +189,27 @@ class MyImageDataset(Dataset):
                                align_corners=False).squeeze(0)
         normal = normal.cpu()
 
-        # Load and process audio
-        wav, sr = torchaudio.load(os.path.join(self.audio_dir, f'{name}.wav'))
-        wav = wav.squeeze(0)
+        # Load and process audio - Pure Python
+        audio_path = os.path.join(self.audio_dir, f'{name}_{ts}.wav')
+        with wave.open(audio_path, 'rb') as wav_file:
+            # Get audio properties
+            n_channels = wav_file.getnchannels()
+            sample_width = wav_file.getsampwidth()
+            sr = wav_file.getframerate()
+            n_frames = wav_file.getnframes()
+
+            # Read audio data
+            raw_data = wav_file.readframes(n_frames)
+
+        # Convert bytes to numpy array
+        audio_data = np.frombuffer(raw_data, dtype=np.int16)
+
+        if n_channels == 2:
+            audio_data = audio_data.reshape(-1, 2).mean(axis=1)
+
+        # Convert to float and normalize
+        wav = torch.from_numpy(audio_data.astype(np.float32) / 32768.0)
+
         if sr != TARGET_SR:
             wav = torchaudio.transforms.Resample(sr, TARGET_SR)(wav)
 
