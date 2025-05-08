@@ -39,13 +39,19 @@ class MyImageDataset(Dataset):
         device: torch.device = torch.device('cpu')
     ):
         """
-        Args:
-            data_path (str): Root directory containing the 'video/' and 'audio/' subdirectories.
-            csv_file (str): Path to the CSV file with metadata (e.g., a file with video filenames and labels).
-            file_column (str, optional): Column name for filenames in the CSV. Defaults to 'video_clip_name'.
-            class_column (str, optional): Column name for class labels in the CSV. Defaults to 'class'.
-            hard_data (bool, optional): Flag to enable strong data augmentations. Defaults to False.
-            device (torch.device, optional): Device to use for computation. Defaults to CPU.
+        Initializes an instance of the data loader class for processing video and audio data,
+        with optional data augmentation for hard data scenarios. This initializer sets up the
+        file directories, validates the data, applies transformations, and configures device
+        settings for further processing.
+
+        Arguments:
+            data_path (str): Path to the data directory containing 'video' and 'audio' subdirectories.
+            csv_file (str): Path to the CSV file containing metadata about video clips, timestamps, and classes.
+            file_column (str, optional): Name of the column in the CSV file that specifies video clip names. Defaults to 'video_clip_name'.
+            ts_column (str, optional): Name of the column in the CSV file that specifies timestamps. Defaults to 'timestamp'.
+            class_column (str, optional): Name of the column in the CSV file that specifies class information. Defaults to 'class'.
+            hard_data (bool, optional): Whether to apply data augmentation for hard data scenarios. Defaults to False.
+            device (torch.device, optional): Device configuration for model and data processing. Defaults to 'cpu'.
         """
         self.file_column = file_column
         self.class_column = class_column
