@@ -1,18 +1,14 @@
 import os
 import torch
-from PIL import Image
 from cosmos_tokenizer.image_lib import ImageTokenizer as BaseImageTokenizer
-from torchvision.transforms import ToTensor, ToPILImage
 from huggingface_hub import snapshot_download
-
-from notebooks.Tokenizers import img_tokenizer
 
 
 class ImageTokenizer:
     def __init__(self,
             model_name: str,
             device: torch.device,
-            cache_dir: str = ".cache/cosmos_tokenizer_checkpoints"
+            cache_dir: str = os.path.join(".cache", "cosmos_tokenizer_checkpoints")
     ):
         """
         Initializes the ImageTokenizer with the specified model name and device.
@@ -28,9 +24,9 @@ class ImageTokenizer:
         self.cache_dir = os.path.join(os.path.dirname(__file__), cache_dir)
         os.makedirs(self.cache_dir, exist_ok=True)
 
-        encoder_path = os.path.join(self.cache_dir, f'{model_name}/encoder.jit')
-        decoder_path = os.path.join(self.cache_dir, f'{model_name}/decoder.jit')
-        snapshot_download(repo_id=f"nvidia/{model_name}", local_dir=f"{cache_dir}/{model_name}")
+        encoder_path = os.path.join(self.cache_dir, model_name, 'encoder.jit')
+        decoder_path = os.path.join(self.cache_dir, model_name, 'decoder.jit')
+        snapshot_download(repo_id=f"nvidia/{model_name}", local_dir=os.path.join(cache_dir, model_name))
         self.encoder = BaseImageTokenizer(checkpoint_enc=encoder_path)
         self.decoder = BaseImageTokenizer(checkpoint_dec=decoder_path)
 
