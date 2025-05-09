@@ -8,7 +8,7 @@ class ImageTokenizer:
     def __init__(self,
             model_name: str,
             device: torch.device,
-            cache_dir: str = os.path.join(".cache", "cosmos_tokenizer_checkpoints")
+            cache_dir: str = "/work/com-304/SAGA/cache"
     ):
         """
         Initializes the ImageTokenizer with the specified model name and device.
@@ -21,7 +21,7 @@ class ImageTokenizer:
         """
         self.model_name = model_name
         self.device = device
-        self.cache_dir = os.path.join(os.path.dirname(__file__), cache_dir)
+        self.cache_dir = cache_dir
         os.makedirs(self.cache_dir, exist_ok=True)
 
         encoder_path = os.path.join(self.cache_dir, model_name, 'encoder.jit')
@@ -46,7 +46,7 @@ class ImageTokenizer:
         """
         input_tensor = image.to(self.device)
         latent, _ = self.encoder.encode(input_tensor)
-        return latent
+        return latent.cpu()
 
     def decode(self, latent: torch.Tensor) -> torch.Tensor:
         """

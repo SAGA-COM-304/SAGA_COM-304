@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from typing import Tuple
 import wave
 import numpy as np
+from tqdm import tqdm
+import time
 
 # Constants
 TARGET_SR = 24_000
@@ -57,11 +59,12 @@ class MyImageDataset(Dataset):
         self.class_column = class_column
         self.ts_column = ts_column
 
-        self.video_dir = os.path.join(data_path, 'video')
-        self.audio_dir = os.path.join(data_path, 'audio')
+        self.video_dir = os.path.join(data_path, 'videos')
+        self.audio_dir = os.path.join(data_path, 'audios')
 
+        tqdm.pandas(desc="Loading data")
         df = pd.read_csv(csv_file)
-        valid = df.apply(
+        valid = df.progress_apply(
             lambda row: os.path.isfile(os.path.join(self.video_dir, f"{row[file_column]}_{row[ts_column]}.mp4")),
             axis=1
         )
@@ -98,31 +101,15 @@ class MyImageDataset(Dataset):
         self.device = device
 
         self.depth_proc = AutoImageProcessor.from_pretrained(DEPTH_MODEL_NAME, use_fast=True)
-        self.depth_model = None  # will be lazy-loaded in each worker
-        self.normal_model = None
-        self.normal_tf = T.Compose([
-            T.Resize(384, interpolation=Image.BILINEAR),
-            T.CenterCrop(384),
-            T.ToTensor()
-        ])
-
-    def __len__(self):
-        return len(self.df)
-
-    def _init_models(self):
-        # called inside each worker, on first __getitem__
-        if self.depth_model is None:
-            self.depth_model = (
+        self.depth_model = (
                 AutoModelForDepthEstimation
                 .from_pretrained(DEPTH_MODEL_NAME, torch_dtype=torch.float32)
                 .to(self.device)
                 .eval()
             )
-            self.normal_model = (
-                torch.hub.load(NORMAL_HUB_REPO, NORMAL_ENTRYPOINT, pretrained=True)
-                .to(self.device)
-                .eval()
-            )
+
+    def __len__(self):
+        return len(self.df)
 
     def select_frames(self, video_tensor: torch.Tensor) -> Tuple[torch.Tensor, int]:
         """
@@ -144,17 +131,16 @@ class MyImageDataset(Dataset):
 
         indices = sorted(indices)
         return video_tensor[:, indices, :, :], mid
+    
 
     def __getitem__(self, idx: int) -> dict:
-
-        self._init_models()
-
         row = self.df.iloc[idx]
         name = row[self.file_column]
         ts = row[self.ts_column]
         label = row[self.class_column]
 
         # Load and transform video frames
+        start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
         frames = []
         raw = []
@@ -163,21 +149,21 @@ class MyImageDataset(Dataset):
             if not ret:
                 break
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            raw.append(img)  # needed cause we compute depth and normal on the raw images.
+            raw.append(img)  # needed because we compute depth and normal on the raw images.
             frames.append(self.transform(img))
         cap.release()
         video_tensor = torch.stack(frames, dim=1)
-
-        # select the frames of the video
         selected, central_idx = self.select_frames(video_tensor)
-
-        # select the frame for depth and normal computation
+        print(f"Video frames loaded and transformed in {time.time() - start_time:.2f} seconds")
+    
+        # Select the frame for depth and normal computation
         pil_central = raw[central_idx].resize((self.size, self.size), Image.BILINEAR)
-
+    
         # Rgb image
         rgb_im = video_tensor[:, central_idx, :, :]
-
-        # depth
+    
+        # Depth
+        start_time = time.time()
         with torch.no_grad():
             inp = self.depth_proc(images=pil_central, return_tensors='pt').to(self.device)
             depth_pred = self.depth_model(**inp).predicted_depth[0]
@@ -185,17 +171,10 @@ class MyImageDataset(Dataset):
                               align_corners=False).squeeze(0)
         depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
         depth = depth.cpu()
-
-        # normals
-        with torch.no_grad():
-            nin = self.normal_tf(pil_central).unsqueeze(0).to(self.device)
-            nout = self.normal_model(nin)[0]
-        n = nout / (nout.norm(dim=0, keepdim=True) + 1e-8)
-        normal = F.interpolate(n.unsqueeze(0), size=(self.size, self.size), mode='bilinear',
-                               align_corners=False).squeeze(0)
-        normal = normal.cpu()
-
-        # Load and process audio - Pure Python
+        print(f"Depth computed in {time.time() - start_time:.2f} seconds")
+    
+        # Load and process audio
+        start_time = time.time()
         audio_path = os.path.join(self.audio_dir, f'{name}_{ts}.wav')
         with wave.open(audio_path, 'rb') as wav_file:
             # Get audio properties
@@ -203,33 +182,33 @@ class MyImageDataset(Dataset):
             sample_width = wav_file.getsampwidth()
             sr = wav_file.getframerate()
             n_frames = wav_file.getnframes()
-
+    
             # Read audio data
             raw_data = wav_file.readframes(n_frames)
-
+    
         # Convert bytes to numpy array
         audio_data = np.frombuffer(raw_data, dtype=np.int16)
-
+    
         if n_channels == 2:
             audio_data = audio_data.reshape(-1, 2).mean(axis=1)
-
+    
         # Convert to float and normalize
         wav = torch.from_numpy(audio_data.astype(np.float32) / 32768.0)
-
+    
         if sr != TARGET_SR:
             wav = torchaudio.transforms.Resample(sr, TARGET_SR)(wav)
-
+    
         if wav.numel() > TARGET_LEN:
             wav = wav[:TARGET_LEN]
         else:
             pad = TARGET_LEN - wav.numel()
             wav = torch.cat([wav, torch.zeros(pad)], dim=0)
-
+        print(f"Audio loaded and processed in {time.time() - start_time:.2f} seconds")
+    
         return {
             'frames': selected,
             'rgb': rgb_im,
             'depth': depth,
-            'normal': normal,
             'audios': wav,
             'labels': label,
             'ids': name,
