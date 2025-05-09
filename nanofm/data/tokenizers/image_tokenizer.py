@@ -3,48 +3,69 @@ import torch
 from PIL import Image
 from cosmos_tokenizer.image_lib import ImageTokenizer as BaseImageTokenizer
 from torchvision.transforms import ToTensor, ToPILImage
+from huggingface_hub import snapshot_download
+
+from notebooks.Tokenizers import img_tokenizer
+
 
 class ImageTokenizer:
-    def __init__(self, model_name: str, device: torch.device):
+    def __init__(self,
+            model_name: str,
+            device: torch.device,
+            cache_dir: str = ".cache/cosmos_tokenizer_checkpoints"
+    ):
         """
         Initializes the ImageTokenizer with the specified model name and device.
 
         Arguments:
             model_name (str): Name of the image tokenizer model to use.
+                Cosmos-0.1-Tokenizer-DI8x8 (
+                Cosmos-0.1-Tokenizer-DI16x16 (
             device (torch.device): Device on which the computation will occur.
         """
         self.model_name = model_name
         self.device = device
-        self.cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.cache', 'cosmos_tokenizer_checkpoints')
+        self.cache_dir = os.path.join(os.path.dirname(__file__), cache_dir)
         os.makedirs(self.cache_dir, exist_ok=True)
-        self.encoder = BaseImageTokenizer(checkpoint_enc=os.path.join(self.cache_dir, f'{model_name}_encoder.jit'))
-        self.decoder = BaseImageTokenizer(checkpoint_dec=os.path.join(self.cache_dir, f'{model_name}_decoder.jit'))
 
-    def tokenize(self, image_path: str) -> torch.Tensor:
+        encoder_path = os.path.join(self.cache_dir, f'{model_name}/encoder.jit')
+        decoder_path = os.path.join(self.cache_dir, f'{model_name}/decoder.jit')
+        snapshot_download(repo_id=f"nvidia/{model_name}", local_dir=f"{cache_dir}/{model_name}")
+        self.encoder = BaseImageTokenizer(checkpoint_enc=encoder_path)
+        self.decoder = BaseImageTokenizer(checkpoint_dec=decoder_path)
+
+    def encode(self, image: torch.Tensor) -> torch.Tensor:
         """
-        Tokenizes an input image into a latent tensor representation.
+        Encodes an input image into its latent representation using a pre-trained
+        encoder model. The image is converted to RGB format, transformed into a
+        tensor, and processed to produce the latent vector.
 
-        Arguments:
-            image_path (str): Path to the input image file to be tokenized.
+        Parameters:
+            image : torch.Tensor
+                The input image tensor to be encoded. (Batch, C, H, W)
 
         Returns:
-            torch.Tensor: A latent tensor representation of the input image.
+            torch.Tensor
+                The latent representation of the input image.
         """
-        image = Image.open(image_path).convert('RGB')
-        input_tensor = ToTensor()(image).unsqueeze(0).to(self.device)
+        input_tensor = image.to(self.device)
         latent, _ = self.encoder.encode(input_tensor)
         return latent
 
-    def detokenize(self, latent: torch.Tensor) -> Image.Image:
+    def decode(self, latent: torch.Tensor) -> torch.Tensor:
         """
-        Detokenizes a latent tensor representation into a PIL Image.
+        Decodes the latent representation into its original tensor form using the decoder.
 
-        Arguments:
-            latent (torch.Tensor): The latent tensor representation of an image.
+        The method takes a latent tensor representation as input, processes it through the
+        decoder, and returns the reconstructed tensor in CPU memory.
+
+        Args:
+            latent (torch.Tensor): A tensor representing the latent space representation.
+                It should be moved to the appropriate computation device before decoding.
 
         Returns:
-            Image.Image: A PIL Image obtained after decoding the latent representation.
+            torch.Tensor: The reconstructed tensor in its original form, moved back to
+            the CPU memory.
         """
-        output_tensor = self.decoder.decode(latent)
-        output_tensor = output_tensor.squeeze(0).cpu()
-        return ToPILImage()(output_tensor)
+        output_tensor = self.decoder.decode(latent.to(self.device))
+        return output_tensor.cpu()
