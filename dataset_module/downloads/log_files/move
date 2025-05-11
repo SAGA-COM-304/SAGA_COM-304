@@ -1,0 +1,3 @@
+for i in {02..20}; do
+mv dataset_module/downloads/vggsound/$i/log_file.log dataset_module/downloads/log_files/${i}.log
+done
