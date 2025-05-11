@@ -84,33 +84,8 @@ def create_multimodal_masked_dataloader(
         overlap_posembs=overlap_posembs,
     )
     def combined_transforms(data_dict):
-        """
-        Applique d'abord le masking MLM sur tok_* et scene_desc,
-        puis un zero-out simple sur video et audio.
-        """
-        #MLM masking pour tok_* et scene_desc
         masked = masking_transforms(data_dict)
-        ## TODO: Review the masking logic for video and audio
-        #Video: masquer 15% des frames en les remplaçant par 0
-        if 'video' in masked:
-            vid = masked['video']               # Tensor shape: (T, H, W, C) ou similaire
-            n_frames = vid.size(0)
-            n_mask   = max(1, int(n_frames * 0.15))
-            mask_idx = torch.randperm(n_frames)[:n_mask]
-            vid = vid.clone()
-            vid[mask_idx, ...] = 0
-            masked['video'] = vid
-
-        # 3) Audio : masquer 15% des pas temporels
-        if 'audio' in masked:
-            aud     = masked['audio']           # Tensor shape: (T, F) ou similaire
-            n_steps = aud.size(0)
-            n_mask  = max(1, int(n_steps * 0.15))
-            mask_idx = torch.randperm(n_steps)[:n_mask]
-            aud = aud.clone()
-            aud[mask_idx, ...] = 0
-            masked['audio'] = aud
-
+        #We will add here the masking logic of the tokens of video and audio if needed
         return masked
 
     dataset = AdaptedMultimodalDataset(

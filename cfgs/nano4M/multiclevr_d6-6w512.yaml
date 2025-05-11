@@ -6,9 +6,9 @@ output_dir: ./outputs/auto # Set to auto to use the run_name
 # Global variables used throughout the config
 global_vars:
   batch_size: 128 # per GPU (512 global batch size)
-  modalities: ["tok_rgb@256", "tok_depth@256", "tok_normal@256", "scene_desc"] # Input and output modalities
-  vocab_sizes: [64000, 64000, 64000, 50304] # Vocab sizes for each modality
-  max_seq_lens: [256, 256, 256, 256] # Max sequence lengths for each modality
+  modalities: ["tok_rgb@256", "tok_depth@256", "tok_normal@256","video","audio", "scene_desc"] # TODO: adapt Input and output modalities
+  vocab_sizes: [64000, 64000, 64000, 50304] # TODO: adapt Vocab sizes for each modality
+  max_seq_lens: [256, 256, 256, 256] #TODO: adjust per-modality max token counts
   input_alphas: [1.0, 1.0, 1.0, 1.0] # Input dirichlet alpha values for each modality
   target_alphas: [1.0, 1.0, 1.0, 1.0] # Target dirichlet alpha values for each modality
   input_tokens_range: [1, 128] # Min and max encoder tokens during training
@@ -18,7 +18,7 @@ global_vars:
 batch_size: ${global_vars.batch_size}
 total_tokens: 5000 # in millions of tokens
 warmup_tokens: 500 # in millions of tokens
-num_tokens_per_sample: 256 # Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
+num_tokens_per_sample: 256 #TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
 lr: 0.0006 # Max learning rate
 min_lr: 0.000001 # Min learning rate after cosine decay
 weight_decay: 0.05 # AdamW weight decay
