@@ -56,9 +56,8 @@ def main():
 
     # Dataset & loader ---------------------------------------------------- #
     ds = MyImageDataset(data_path=str(args.data_root),
-                        csv_file=str(args.csv),
-                        device=torch.device("cpu"))           
-    dl = DataLoader(ds, batch_size=args.batch, shuffle=False, num_workers=4)
+                        csv_file=str(args.csv))           
+    dl = DataLoader(ds, batch_size=args.batch, shuffle=False)
 
     # Tokenizers ---------------------------------------------------------- #
     img_tok = ImageTokenizer(model_name=args.model,
