@@ -19,9 +19,6 @@ TARGET_SR = 24_000
 DURATION_SEC = 3
 TARGET_LEN = TARGET_SR * DURATION_SEC
 
-MEAN = (0.48145466, 0.4578275, 0.40821073)
-STD = (0.26862954, 0.26130258, 0.27577711)
-
 # Depth & normal models
 DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
 NORMAL_HUB_REPO = "alexsax/omnidata_models"
@@ -75,6 +72,9 @@ class MyImageDataset(Dataset):
         self.duration = DURATION_SEC
         self.time_shift = 0.5
 
+        self.MEAN = (0.48145466, 0.4578275, 0.40821073)
+        self.STD = (0.26862954, 0.26130258, 0.27577711)
+
         if hard_data:
             self.transform = T.Compose([
                 T.RandomResizedCrop((self.size, self.size)),
@@ -83,8 +83,8 @@ class MyImageDataset(Dataset):
                 T.RandomGrayscale(p=0.2),
                 T.ToTensor(),
                 T.Normalize(
-                    mean=MEAN,
-                    std=STD
+                    mean=self.MEAN,
+                    std=self.STD
                 ),
                 T.RandomHorizontalFlip(),
             ])
@@ -93,8 +93,8 @@ class MyImageDataset(Dataset):
                 T.Resize((self.size, self.size), T.InterpolationMode.BICUBIC),
                 T.ToTensor(),
                 T.Normalize(
-                    mean=MEAN,
-                    std=STD
+                    mean=self.MEAN,
+                    std=self.STD
                 ),
             ])
 
