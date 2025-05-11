@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 
+from .adapted_multimodal_dataset import AdaptedMultimodalDataset
 from .simple_multimodal_dataset import SimpleMultimodalDataset
 from .masking import SimpleMultimodalMasking
 from ..utils import infinite_iterator
@@ -70,6 +71,7 @@ def create_multimodal_masked_dataloader(
         drop_last: Whether to drop the last batch if it's smaller than the batch size.
         distributed: Whether to use a distributed sampler.
     """
+
     masking_transforms = SimpleMultimodalMasking(
         modalities=modalities,
         vocab_sizes=vocab_sizes,
@@ -81,12 +83,41 @@ def create_multimodal_masked_dataloader(
         overlap_vocab=overlap_vocab,
         overlap_posembs=overlap_posembs,
     )
+    def combined_transforms(data_dict):
+        """
+        Applique d'abord le masking MLM sur tok_* et scene_desc,
+        puis un zero-out simple sur video et audio.
+        """
+        #MLM masking pour tok_* et scene_desc
+        masked = masking_transforms(data_dict)
+        ## TODO: Review the masking logic for video and audio
+        #Video: masquer 15% des frames en les remplaçant par 0
+        if 'video' in masked:
+            vid = masked['video']               # Tensor shape: (T, H, W, C) ou similaire
+            n_frames = vid.size(0)
+            n_mask   = max(1, int(n_frames * 0.15))
+            mask_idx = torch.randperm(n_frames)[:n_mask]
+            vid = vid.clone()
+            vid[mask_idx, ...] = 0
+            masked['video'] = vid
 
-    dataset = SimpleMultimodalDataset(
+        # 3) Audio : masquer 15% des pas temporels
+        if 'audio' in masked:
+            aud     = masked['audio']           # Tensor shape: (T, F) ou similaire
+            n_steps = aud.size(0)
+            n_mask  = max(1, int(n_steps * 0.15))
+            mask_idx = torch.randperm(n_steps)[:n_mask]
+            aud = aud.clone()
+            aud[mask_idx, ...] = 0
+            masked['audio'] = aud
+
+        return masked
+
+    dataset = AdaptedMultimodalDataset(
         root_dir=root_dir,
         split=split,
         modalities=modalities,
-        transforms=masking_transforms,
+        transforms=combined_transforms,
         sample_from_k_augmentations=sample_from_k_augmentations,
         text_tokenizer_path=text_tokenizer_path,
         text_max_length=text_max_length,
@@ -103,7 +134,6 @@ def create_multimodal_masked_dataloader(
         pin_memory=pin_memory,
         drop_last=drop_last,
     )
-
     if infinite:
         return infinite_iterator(dataloader, distributed, sampler)
 
