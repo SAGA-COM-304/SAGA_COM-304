@@ -14,16 +14,6 @@ import numpy as np
 from tqdm import tqdm
 import time
 
-# Constants
-TARGET_SR = 24_000
-DURATION_SEC = 3
-TARGET_LEN = TARGET_SR * DURATION_SEC
-
-# Depth & normal models
-DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
-NORMAL_HUB_REPO = "alexsax/omnidata_models"
-NORMAL_ENTRYPOINT = "surface_normal_dpt_hybrid_384"
-
 
 class MyImageDataset(Dataset):
 
@@ -63,10 +53,21 @@ class MyImageDataset(Dataset):
             hard_data (bool, optional): Whether to apply data augmentation for hard data scenarios. Defaults to False.
             device (torch.device, optional): Device configuration for model and data processing. Defaults to 'cpu'.
         """
+        self.IMG_SIZE = 256
+        self.NUM_FRAMES = 5
+        self.DURATION = 3
+        self.TIME_SHIFT = 0.5
+        self.SAMPLE_RATE = 24_000
+        self.TARGET_LEN = self.SAMPLE_RATE * self.DURATION
+        self.DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
+
+
+
         self.file_column = file_column
         self.class_column = class_column
         self.ts_column = ts_column
         self.group_column = group_column
+
 
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
@@ -84,17 +85,14 @@ class MyImageDataset(Dataset):
         )
         self.df = df[valid].reset_index(drop=True)
 
-        self.size = 256
-        self.num_frames = 5
-        self.duration = DURATION_SEC
-        self.time_shift = 0.5
+        
 
         self.MEAN = (0.48145466, 0.4578275, 0.40821073)
         self.STD = (0.26862954, 0.26130258, 0.27577711)
 
         if hard_data:
             self.transform = T.Compose([
-                T.RandomResizedCrop((self.size, self.size)),
+                T.RandomResizedCrop((self.img_size, self.img_size)),
                 T.RandomApply([T.GaussianBlur(5, (0.1, 2.0))], p=0.8),
                 T.RandomApply([T.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
                 T.RandomGrayscale(p=0.2),
@@ -107,7 +105,7 @@ class MyImageDataset(Dataset):
             ])
         else:
             self.transform = T.Compose([
-                T.Resize((self.size, self.size), T.InterpolationMode.BICUBIC),
+                T.Resize((self.img_size, self.img_size), T.InterpolationMode.BICUBIC),
                 T.ToTensor(),
                 T.Normalize(
                     mean=self.MEAN,
@@ -117,10 +115,10 @@ class MyImageDataset(Dataset):
 
         self.device = device
 
-        self.depth_proc = AutoImageProcessor.from_pretrained(DEPTH_MODEL_NAME, use_fast=True)
+        self.depth_proc = AutoImageProcessor.from_pretrained(self.DEPTH_MODEL_NAME, use_fast=True)
         self.depth_model = (
                 AutoModelForDepthEstimation
-                .from_pretrained(DEPTH_MODEL_NAME, torch_dtype=torch.float32)
+                .from_pretrained(self.DEPTH_MODEL_NAME, torch_dtype=torch.float32)
                 .to(self.device)
                 .eval()
             )
@@ -157,6 +155,7 @@ class MyImageDataset(Dataset):
         label = row[self.class_column]
         group = row[self.group_column]
 
+
         # Load and transform video frames
         start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
@@ -175,7 +174,7 @@ class MyImageDataset(Dataset):
         print(f"Video frames loaded and transformed in {time.time() - start_time:.2f} seconds")
     
         # Select the frame for depth and normal computation
-        pil_central = raw[central_idx].resize((self.size, self.size), Image.BILINEAR)
+        pil_central = raw[central_idx].resize((self.img_size, self.img_size), Image.BILINEAR)
     
         # Rgb image
         rgb_im = video_tensor[:, central_idx, :, :]
@@ -185,7 +184,7 @@ class MyImageDataset(Dataset):
         with torch.no_grad():
             inp = self.depth_proc(images=pil_central, return_tensors='pt').to(self.device)
             depth_pred = self.depth_model(**inp).predicted_depth[0]
-        depth = F.interpolate(depth_pred.unsqueeze(0).unsqueeze(0), size=(self.size, self.size), mode='bilinear',
+        depth = F.interpolate(depth_pred.unsqueeze(0).unsqueeze(0), size=(self.img_size, self.img_size), mode='bilinear',
                               align_corners=False).squeeze(0)
         depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
         depth = depth.cpu()
@@ -213,13 +212,13 @@ class MyImageDataset(Dataset):
         # Convert to float and normalize
         wav = torch.from_numpy(audio_data.astype(np.float32) / 32768.0)
     
-        if sr != TARGET_SR:
-            wav = torchaudio.transforms.Resample(sr, TARGET_SR)(wav)
+        if sr != self.SAMPLE_RATE:
+            wav = torchaudio.transforms.Resample(sr, self.SAMPLE_RATE)(wav)
     
-        if wav.numel() > TARGET_LEN:
-            wav = wav[:TARGET_LEN]
+        if wav.numel() > self.TARGET_LEN:
+            wav = wav[:self.TARGET_LEN]
         else:
-            pad = TARGET_LEN - wav.numel()
+            pad = self.TARGET_LEN - wav.numel()
             wav = torch.cat([wav, torch.zeros(pad)], dim=0)
         print(f"Audio loaded and processed in {time.time() - start_time:.2f} seconds")
     
@@ -233,4 +232,24 @@ class MyImageDataset(Dataset):
             'groups': group,
         }
 
-# TODO : Prendre en compte Audio pas en Mono + Pas sampler a un rate precis
+
+if __name__ == "__main__":
+    # Example usage
+    dataset = MyImageDataset(
+        data_path='/work/com-304/SAGA/raw',
+        csv_file='/work/com-304/SAGA/balanced_vggsound.csv',
+        device=torch.device('cuda')
+    )
+
+    for i in range(5):
+        sample = dataset[i]
+        print(f"Sample {i}:")
+        print(f"  Frames shape: {sample['frames'].shape}")
+        print(f"  RGB shape: {sample['rgb'].shape}")
+        print(f"  Depth shape: {sample['depth'].shape}")
+        print(f"  Audio shape: {sample['audios'].shape}")
+        print(f"  Label: {sample['labels']}")
+        print(f"  ID: {sample['ids']}")
+        print(f"  Group: {sample['groups']}")
+
+    
