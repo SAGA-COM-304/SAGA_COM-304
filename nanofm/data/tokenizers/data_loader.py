@@ -27,6 +27,16 @@ NORMAL_ENTRYPOINT = "surface_normal_dpt_hybrid_384"
 
 class MyImageDataset(Dataset):
 
+    def _has_readable_frames(self, path: str) -> bool:
+        """
+        True  → OpenCV can decode at least one frame.
+        False → the file is empty / truncated / wrong codec / unreadable.
+        """
+        cap = cv2.VideoCapture(path)
+        ok, _ = cap.read()
+        cap.release()
+        return ok
+
     def __init__(
         self,
         data_path: str,
@@ -62,7 +72,12 @@ class MyImageDataset(Dataset):
         tqdm.pandas(desc="Loading data")
         df = pd.read_csv(csv_file)
         valid = df.progress_apply(
-            lambda row: os.path.isfile(os.path.join(self.video_dir, f"{row[file_column]}_{row[ts_column]}.mp4")),
+            lambda row: (
+                os.path.isfile(os.path.join(self.video_dir,
+                                            f"{row[file_column]}_{row[ts_column]}.mp4"))
+                and self._has_readable_frames(os.path.join(self.video_dir,
+                                            f"{row[file_column]}_{row[ts_column]}.mp4"))
+            ),
             axis=1
         )
         self.df = df[valid].reset_index(drop=True)
