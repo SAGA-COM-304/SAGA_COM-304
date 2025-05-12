@@ -44,6 +44,7 @@ class MyImageDataset(Dataset):
         file_column: str = 'video_clip_name',
         ts_column: str = 'timestamp',
         class_column: str = 'class',
+        group_column: str = 'group_name',
         hard_data: bool = False,
         device: torch.device = torch.device('cpu')
     ):
@@ -65,6 +66,7 @@ class MyImageDataset(Dataset):
         self.file_column = file_column
         self.class_column = class_column
         self.ts_column = ts_column
+        self.group_column = group_column
 
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
@@ -153,6 +155,7 @@ class MyImageDataset(Dataset):
         name = row[self.file_column]
         ts = row[self.ts_column]
         label = row[self.class_column]
+        group = row[self.group_column]
 
         # Load and transform video frames
         start_time = time.time()
@@ -227,6 +230,7 @@ class MyImageDataset(Dataset):
             'audios': wav,
             'labels': label,
             'ids': name,
+            'groups': group,
         }
 
 # TODO : Prendre en compte Audio pas en Mono + Pas sampler a un rate precis
