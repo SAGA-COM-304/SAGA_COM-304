@@ -65,6 +65,3 @@ kill <pid>
 [Overleaf Project](https://www.overleaf.com/read/brbpqrkfsnmn#35fa19)
 
 [Conventional Commits rules](https://www.conventionalcommits.org/en/v1.0.0/)
-
-http://10.91.27.23:8888/lab?token=910f7d0617f8a31526b656fc3b35764fd8df3438a9d01b6f
-        http://127.0.0.1:8888/lab?token=910f7d0617f8a31526b656fc3b35764fd8df3438a9d01b6f
