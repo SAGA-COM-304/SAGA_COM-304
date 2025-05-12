@@ -29,7 +29,7 @@ class AudioTokenizer:
         target_sr : 24 OOO Hz (asked by Mimi)
         device    : cpu, cuda (scitas), mps (mac)
         """
-        _ensure_backend()
+        # _ensure_backend()
         self.sr = target_sr
         self.device = torch.device(device)
 

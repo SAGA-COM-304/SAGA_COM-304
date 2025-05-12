@@ -11,6 +11,7 @@ wandb
 .DS_Store
 __pycache__
 .ipynb_checkpoints
+.local_cache
 
 # Downloaded datasets
 dataset_module/downloads

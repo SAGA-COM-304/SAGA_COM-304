@@ -55,8 +55,10 @@ def main():
         sys.exit(f"{args.output} already exists; use --overwrite")
 
     # Dataset & loader ---------------------------------------------------- #
+    print("Loading dataset...")
     ds = MyImageDataset(data_path=str(args.data_root),
-                        csv_file=str(args.csv))           
+                        csv_file=str(args.csv)) 
+    print("Dataset loaded.")          
     dl = DataLoader(ds, batch_size=args.batch, shuffle=False)
 
     # Tokenizers ---------------------------------------------------------- #

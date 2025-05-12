@@ -8,7 +8,7 @@ class ImageTokenizer:
     def __init__(self,
             model_name: str,
             device: torch.device,
-            cache_dir: str = ".cache"
+            cache_dir: str = ".local_cache",
     ):
         """
         Initializes the ImageTokenizer with the specified model name and device.
