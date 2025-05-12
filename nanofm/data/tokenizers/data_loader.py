@@ -27,6 +27,16 @@ NORMAL_ENTRYPOINT = "surface_normal_dpt_hybrid_384"
 
 class MyImageDataset(Dataset):
 
+    def _has_readable_frames(self, path: str) -> bool:
+        """
+        True  → OpenCV can decode at least one frame.
+        False → the file is empty / truncated / wrong codec / unreadable.
+        """
+        cap = cv2.VideoCapture(path)
+        ok, _ = cap.read()
+        cap.release()
+        return ok
+
     def __init__(
         self,
         data_path: str,
@@ -34,6 +44,7 @@ class MyImageDataset(Dataset):
         file_column: str = 'video_clip_name',
         ts_column: str = 'timestamp',
         class_column: str = 'class',
+        group_column: str = 'group_name',
         hard_data: bool = False,
         device: torch.device = torch.device('cpu')
     ):
@@ -55,6 +66,7 @@ class MyImageDataset(Dataset):
         self.file_column = file_column
         self.class_column = class_column
         self.ts_column = ts_column
+        self.group_column = group_column
 
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
@@ -62,7 +74,12 @@ class MyImageDataset(Dataset):
         tqdm.pandas(desc="Loading data")
         df = pd.read_csv(csv_file)
         valid = df.progress_apply(
-            lambda row: os.path.isfile(os.path.join(self.video_dir, f"{row[file_column]}_{row[ts_column]}.mp4")),
+            lambda row: (
+                os.path.isfile(os.path.join(self.video_dir,
+                                            f"{row[file_column]}_{row[ts_column]}.mp4"))
+                and self._has_readable_frames(os.path.join(self.video_dir,
+                                            f"{row[file_column]}_{row[ts_column]}.mp4"))
+            ),
             axis=1
         )
         self.df = df[valid].reset_index(drop=True)
@@ -138,6 +155,7 @@ class MyImageDataset(Dataset):
         name = row[self.file_column]
         ts = row[self.ts_column]
         label = row[self.class_column]
+        group = row[self.group_column]
 
         # Load and transform video frames
         start_time = time.time()
@@ -212,6 +230,7 @@ class MyImageDataset(Dataset):
             'audios': wav,
             'labels': label,
             'ids': name,
+            'groups': group,
         }
 
 # TODO : Prendre en compte Audio pas en Mono + Pas sampler a un rate precis

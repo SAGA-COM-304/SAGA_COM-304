@@ -21,6 +21,11 @@ Activate the conda environment:
 conda activate saga304
 ```
 
+#### If needed to create it back
+```
+conda create --prefix /work/com-304/SAGA/.envs/saga304 python=3.10 -y
+```
+
 ### Install ffmpeg (required by pydub) 
 
 #### from conda-forge
