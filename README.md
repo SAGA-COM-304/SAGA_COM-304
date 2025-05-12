@@ -39,6 +39,26 @@ TODO
 ```
 sbatch submit_job_multi_node_scitas.sh <config_file> <your_wandb_key>
 ```
+
+
+## Run notebook on SCITAS
+```
+srun -t 120 -A com-304 --qos=com-304 --gres=gpu:1 --mem=16G --pty bash
+```
+```
+jupyter lab --no-browser --port=8888 --ip=$(hostname -i)
+```
+On your local machine, run:
+```
+ssh -L 8756:<IP+Port> -l bousquie izar.epfl.ch -f -N
+```
+
+### Kill process
+```
+lsof -ti:<port_number>
+kill <pid>
+```
+
 # Useful resources
 [Foundation Models repository](https://github.com/EPFL-VILAB/com-304-FM-project)
 

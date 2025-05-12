@@ -26,8 +26,8 @@ dependencies = [
     "pillow",
     "torchaudio",
     "jsonlines",
-    "pytube"
-
+    "pytube",
+    "notebook"
 ]
 
 [project.urls]

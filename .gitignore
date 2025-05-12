@@ -18,3 +18,4 @@ dataset_module/downloads
 # Local configuration files
 import4cluster.sh
 send2cluster.sh
+tmp.txt

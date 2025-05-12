@@ -12,7 +12,7 @@ except ImportError:
     AUDIO_PLAYBACK_AVAILABLE = False
 
 
-from prepare.data_loader import MyImageDataset
+from nanofm.data.tokenizers.data_loader import MyImageDataset
 
 #Normalisation constant
 MEAN = np.array([0.48145466, 0.4578275, 0.40821073])
