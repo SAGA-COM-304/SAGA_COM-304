@@ -9,7 +9,7 @@ class VideoTokenizer:
     def __init__(self,
             model_name: str,
             device: torch.device,
-            cache_dir: str = "/work/com-304/SAGA/cache"
+            cache_dir: str = ".local_cache"
     ):
         """
         Initializes the VideoTokenizer with the specified model name and device.
