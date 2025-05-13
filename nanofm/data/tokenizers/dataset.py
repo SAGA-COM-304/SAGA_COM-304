@@ -74,7 +74,7 @@ class MyImageDataset(Dataset):
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
 
-        tqdm.pandas(desc="Loading data") # TODO : Askip je peux enlever le tri ici
+        tqdm.pandas(desc="Loading data") # TODO : Askip on peut enlever le tri ici
         df = pd.read_csv(csv_file)
         valid = df.progress_apply(
             lambda row: (
@@ -271,7 +271,7 @@ if __name__ == "__main__":
     save_path = '/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/dataset'
     
     # Save one sample of the dataset to check the unnormalization
-    sample = dataset[0]
+    sample = dataset[40]
     rgb = dataset.unnormalize(sample['rgb'])
     save_frames(rgb, os.path.join(save_path, 'rgb'))
 
@@ -279,5 +279,5 @@ if __name__ == "__main__":
     frames = sample['frames'].permute(1, 0, 2, 3)
     save_frames(dataset.unnormalize(frames), os.path.join(save_path, 'frames'))
 
-
-    
+    # Save depth
+    save_frames(dataset.unnormalize(sample['depth']), os.path.join(save_path, 'depth'))
