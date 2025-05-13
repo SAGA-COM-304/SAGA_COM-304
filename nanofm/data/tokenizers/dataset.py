@@ -14,15 +14,7 @@ import numpy as np
 from tqdm import tqdm
 import time
 
-# Constants
-TARGET_SR = 24_000
-DURATION_SEC = 3
-TARGET_LEN = TARGET_SR * DURATION_SEC
-
-# Depth & normal models
-DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
-NORMAL_HUB_REPO = "alexsax/omnidata_models"
-NORMAL_ENTRYPOINT = "surface_normal_dpt_hybrid_384"
+from nanofm.data.utils import save_frames
 
 
 class MyImageDataset(Dataset):
@@ -63,6 +55,17 @@ class MyImageDataset(Dataset):
             hard_data (bool, optional): Whether to apply data augmentation for hard data scenarios. Defaults to False.
             device (torch.device, optional): Device configuration for model and data processing. Defaults to 'cpu'.
         """
+        self.MEAN = (0.48145466, 0.4578275, 0.40821073)
+        self.STD = (0.26862954, 0.26130258, 0.27577711)
+        self.IMG_SIZE = 256
+        self.NUM_FRAMES = 5
+        self.DURATION = 3
+        self.TIME_SHIFT = 0.5
+        self.SAMPLE_RATE = 24_000
+        self.TARGET_LEN = self.SAMPLE_RATE * self.DURATION
+        self.DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
+
+
         self.file_column = file_column
         self.class_column = class_column
         self.ts_column = ts_column
@@ -71,7 +74,7 @@ class MyImageDataset(Dataset):
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
 
-        tqdm.pandas(desc="Loading data")
+        tqdm.pandas(desc="Loading data") # TODO : Askip on peut enlever le tri ici
         df = pd.read_csv(csv_file)
         valid = df.progress_apply(
             lambda row: (
@@ -84,17 +87,9 @@ class MyImageDataset(Dataset):
         )
         self.df = df[valid].reset_index(drop=True)
 
-        self.size = 256
-        self.num_frames = 5
-        self.duration = DURATION_SEC
-        self.time_shift = 0.5
-
-        self.MEAN = (0.48145466, 0.4578275, 0.40821073)
-        self.STD = (0.26862954, 0.26130258, 0.27577711)
-
         if hard_data:
             self.transform = T.Compose([
-                T.RandomResizedCrop((self.size, self.size)),
+                T.RandomResizedCrop((self.IMG_SIZE, self.IMG_SIZE)),
                 T.RandomApply([T.GaussianBlur(5, (0.1, 2.0))], p=0.8),
                 T.RandomApply([T.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
                 T.RandomGrayscale(p=0.2),
@@ -107,7 +102,7 @@ class MyImageDataset(Dataset):
             ])
         else:
             self.transform = T.Compose([
-                T.Resize((self.size, self.size), T.InterpolationMode.BICUBIC),
+                T.Resize((self.IMG_SIZE, self.IMG_SIZE), T.InterpolationMode.BICUBIC),
                 T.ToTensor(),
                 T.Normalize(
                     mean=self.MEAN,
@@ -117,40 +112,37 @@ class MyImageDataset(Dataset):
 
         self.device = device
 
-        self.depth_proc = AutoImageProcessor.from_pretrained(DEPTH_MODEL_NAME, use_fast=True)
-        self.depth_model = (
+        self.depth_proc = AutoImageProcessor.from_pretrained(self.DEPTH_MODEL_NAME, use_fast=True)
+        self.depth_model = None
+    
+    def __len__(self):
+        return len(self.df)
+    
+    def _init_models(self):
+        """Initialize models lazily once and cache them"""
+        if not hasattr(self, '_depth_model_initialized'):
+            self.depth_model = (
                 AutoModelForDepthEstimation
-                .from_pretrained(DEPTH_MODEL_NAME, torch_dtype=torch.float32)
+                .from_pretrained(self.DEPTH_MODEL_NAME, torch_dtype=torch.float16)  # Use fp16 for speed
                 .to(self.device)
                 .eval()
             )
-
-    def __len__(self):
-        return len(self.df)
-
-    def select_frames(self, video_tensor: torch.Tensor) -> Tuple[torch.Tensor, int]:
-        """
-        Selects a fixed number of frames around the midpoint, with time-shift sampling.
-        Return : 
-        The selected frames of the video and the indice of the 'Rgb image' that will be used alone.
-        """
-        total = video_tensor.size(1)
-        mid = total // 2
-        fps = total / self.duration
-        step = max(1, int(self.time_shift * fps))
-
-        before = (self.num_frames - 1) // 2
-        after = self.num_frames - 1 - before
-
-        indices = [mid] + \
-                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
-                  [min(mid + i * step, total - 1) for i in range(1, after + 1)]
-
-        indices = sorted(indices)
-        return video_tensor[:, indices, :, :], mid
-    
+            self._depth_model_initialized = True
 
     def __getitem__(self, idx: int) -> dict:
+        """
+        Returns:
+            A dictionary containing the following keys:
+            - 'frames': The selected frames of the video. (Shape: (C, T, H, W))
+            - 'rgb': The RGB image of the central frame. (Shape: (C, H, W))
+            - 'depth': The depth map of the central frame. (Shape: (1, H, W))
+            - 'audios': The audio data. 
+            - 'labels': The class label.
+            - 'ids': The video clip name.
+            - 'groups': The group name.
+        """
+        self._init_models()
+
         row = self.df.iloc[idx]
         name = row[self.file_column]
         ts = row[self.ts_column]
@@ -158,41 +150,50 @@ class MyImageDataset(Dataset):
         group = row[self.group_column]
 
         # Load and transform video frames
-        start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+
+        # Calculate frame indices to load
+        mid = total_frames // 2
+        step = max(1, int(self.TIME_SHIFT * fps))
+        before = (self.NUM_FRAMES - 1) // 2
+        after = self.NUM_FRAMES - 1 - before
+        indices = [mid] + \
+                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
+                  [min(mid + i * step, total_frames - 1) for i in range(1, after + 1)]
+        indices = sorted(indices)
+
         frames = []
         raw = []
-        while True:
+        for idx in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
             ret, frame = cap.read()
-            if not ret:
-                break
-            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            raw.append(img)  # needed because we compute depth and normal on the raw images.
-            frames.append(self.transform(img))
+            if ret:
+                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                raw.append(img)
+                frames.append(self.transform(img))
         cap.release()
         video_tensor = torch.stack(frames, dim=1)
-        selected, central_idx = self.select_frames(video_tensor)
-        print(f"Video frames loaded and transformed in {time.time() - start_time:.2f} seconds")
+        selected = video_tensor
+        central_idx = len(frames) // 2
     
         # Select the frame for depth and normal computation
-        pil_central = raw[central_idx].resize((self.size, self.size), Image.BILINEAR)
+        pil_central = raw[central_idx].resize((self.IMG_SIZE, self.IMG_SIZE), Image.BILINEAR)
     
         # Rgb image
         rgb_im = video_tensor[:, central_idx, :, :]
     
         # Depth
-        start_time = time.time()
         with torch.no_grad():
             inp = self.depth_proc(images=pil_central, return_tensors='pt').to(self.device)
             depth_pred = self.depth_model(**inp).predicted_depth[0]
-        depth = F.interpolate(depth_pred.unsqueeze(0).unsqueeze(0), size=(self.size, self.size), mode='bilinear',
+        depth = F.interpolate(depth_pred.unsqueeze(0).unsqueeze(0), size=(self.IMG_SIZE, self.IMG_SIZE), mode='bilinear',
                               align_corners=False).squeeze(0)
         depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
         depth = depth.cpu()
-        print(f"Depth computed in {time.time() - start_time:.2f} seconds")
     
         # Load and process audio
-        start_time = time.time()
         audio_path = os.path.join(self.audio_dir, f'{name}_{ts}.wav')
         with wave.open(audio_path, 'rb') as wav_file:
             # Get audio properties
@@ -213,15 +214,14 @@ class MyImageDataset(Dataset):
         # Convert to float and normalize
         wav = torch.from_numpy(audio_data.astype(np.float32) / 32768.0)
     
-        if sr != TARGET_SR:
-            wav = torchaudio.transforms.Resample(sr, TARGET_SR)(wav)
+        if sr != self.SAMPLE_RATE:
+            wav = torchaudio.transforms.Resample(sr, self.SAMPLE_RATE)(wav)
     
-        if wav.numel() > TARGET_LEN:
-            wav = wav[:TARGET_LEN]
+        if wav.numel() > self.TARGET_LEN:
+            wav = wav[:self.TARGET_LEN]
         else:
-            pad = TARGET_LEN - wav.numel()
+            pad = self.TARGET_LEN - wav.numel()
             wav = torch.cat([wav, torch.zeros(pad)], dim=0)
-        print(f"Audio loaded and processed in {time.time() - start_time:.2f} seconds")
     
         return {
             'frames': selected,
@@ -233,4 +233,51 @@ class MyImageDataset(Dataset):
             'groups': group,
         }
 
-# TODO : Prendre en compte Audio pas en Mono + Pas sampler a un rate precis
+    def unnormalize(self, tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Reverses the normalization process applied to a tensor.
+        This method takes a normalized tensor and applies the inverse transformation
+        to restore the original scale of the data using the stored mean and standard
+        deviation values.
+        Args:
+            tensor (torch.Tensor): The normalized tensor to be unnormalized. Shape: (B, C, H, W)
+                where B is the batch size, C is the number of channels, H is the height, and W is the width.
+        Returns:
+            torch.Tensor: The unnormalized tensor with the same shape as the input.
+        """
+        
+        return tensor * torch.tensor(self.STD).view(1, 3, 1, 1) + torch.tensor(self.MEAN).view(1, 3, 1, 1)
+    
+
+if __name__ == "__main__":
+    dataset = MyImageDataset(
+        data_path='/work/com-304/SAGA/raw',
+        csv_file='/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/small_vgg.csv',
+        device=torch.device('cuda')
+    )
+
+    # Try loading a few samples
+    for i in range(5):
+        sample = dataset[i]
+        print(f"Sample {i}:")
+        print(f"  Frames shape: {sample['frames'].shape}")
+        print(f"  RGB shape: {sample['rgb'].shape}")
+        print(f"  Depth shape: {sample['depth'].shape}")
+        print(f"  Audio shape: {sample['audios'].shape}")
+        print(f"  Label: {sample['labels']}")
+        print(f"  ID: {sample['ids']}")
+        print(f"  Group: {sample['groups']}")
+
+    save_path = '/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/dataset'
+    
+    # Save one sample of the dataset to check the unnormalization
+    sample = dataset[40]
+    rgb = dataset.unnormalize(sample['rgb'])
+    save_frames(rgb, os.path.join(save_path, 'rgb'))
+
+    # Save frames
+    frames = sample['frames'].permute(1, 0, 2, 3)
+    save_frames(dataset.unnormalize(frames), os.path.join(save_path, 'frames'))
+
+    # Save depth
+    save_frames(dataset.unnormalize(sample['depth']), os.path.join(save_path, 'depth'))

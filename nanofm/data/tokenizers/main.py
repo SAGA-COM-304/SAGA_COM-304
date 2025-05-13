@@ -14,7 +14,8 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typing import List
-from data.tokenizers.data_loader import MyImageDataset
+
+from nanofm.data.tokenizers.dataset import MyImageDataset
 from data.tokenizers.image_tokenizer import ImageTokenizer
 from data.tokenizers.audio_tokenizer import AudioTokenizer
 from data.tokenizers.video_tokenizer import VideoTokenizer
