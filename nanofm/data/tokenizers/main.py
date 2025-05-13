@@ -65,7 +65,8 @@ def main():
     #print("Loading dataset...")
     ds = MyImageDataset(data_path=str(args.data_root),
                         csv_file=str(args.csv),
-                        group_column=args.group_column) 
+                        group_column=args.group_column,
+                        device=torch.device(args.device)) 
     #print("Dataset loaded.")          
     dl = DataLoader(ds, batch_size=args.batch, shuffle=False)
 

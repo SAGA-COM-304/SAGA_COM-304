@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 
+from .adapted_multimodal_dataset import AdaptedMultimodalDataset
 from .simple_multimodal_dataset import SimpleMultimodalDataset
 from .masking import SimpleMultimodalMasking
 from ..utils import infinite_iterator
@@ -70,6 +71,7 @@ def create_multimodal_masked_dataloader(
         drop_last: Whether to drop the last batch if it's smaller than the batch size.
         distributed: Whether to use a distributed sampler.
     """
+
     masking_transforms = SimpleMultimodalMasking(
         modalities=modalities,
         vocab_sizes=vocab_sizes,
@@ -81,12 +83,16 @@ def create_multimodal_masked_dataloader(
         overlap_vocab=overlap_vocab,
         overlap_posembs=overlap_posembs,
     )
+    def combined_transforms(data_dict):
+        masked = masking_transforms(data_dict)
+        #We will add here the masking logic of the tokens of video and audio if needed
+        return masked
 
-    dataset = SimpleMultimodalDataset(
+    dataset = AdaptedMultimodalDataset(
         root_dir=root_dir,
         split=split,
         modalities=modalities,
-        transforms=masking_transforms,
+        transforms=combined_transforms,
         sample_from_k_augmentations=sample_from_k_augmentations,
         text_tokenizer_path=text_tokenizer_path,
         text_max_length=text_max_length,
@@ -103,7 +109,6 @@ def create_multimodal_masked_dataloader(
         pin_memory=pin_memory,
         drop_last=drop_last,
     )
-
     if infinite:
         return infinite_iterator(dataloader, distributed, sampler)
 
