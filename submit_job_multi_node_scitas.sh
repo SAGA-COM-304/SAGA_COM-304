@@ -36,7 +36,7 @@ srun bash -c "
   echo \${TORCHRUN_ARGS}
   echo \${SLURMD_NODENAME}
 
-  torchrun \${TORCHRUN_ARGS} run_training.py \
+  CUDA_LAUNCH_BLOCKING=1 torchrun \${TORCHRUN_ARGS} run_training.py \
     --config $CONFIG_FILE
 "
 

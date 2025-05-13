@@ -195,10 +195,31 @@ class FourM(nn.Module):
         """
         B, N = enc_input_tokens.shape
 
-        x = self.enc_tok_emb(enc_input_tokens)
+        # Debug information
+        print(f"[DEBUG] enc_input_tokens shape: {enc_input_tokens.shape}")
+        print(f"[DEBUG] enc_input_tokens min: {enc_input_tokens.min()}")
+        print(f"[DEBUG] enc_input_tokens max: {enc_input_tokens.max()}")
+        print(f"[DEBUG] vocab_size: {self.vocab_size}")
+        
+        print(f"[DEBUG] enc_input_positions shape: {enc_input_positions.shape}")
+        print(f"[DEBUG] enc_input_positions min: {enc_input_positions.min()}")
+        print(f"[DEBUG] enc_input_positions max: {enc_input_positions.max()}")
+        print(f"[DEBUG] max_posemb_len: {self.max_posemb_len}")
 
+        x = self.enc_tok_emb(enc_input_tokens)
+        
+        # Debug information
+        print(f"[DEBUG] x shape: {x.shape}")
+        print(f"[DEBUG] enc_input_modalities shape: {enc_input_modalities.shape}")
+        print(f"[DEBUG] enc_input_modalities min: {enc_input_modalities.min()}")
+        print(f"[DEBUG] enc_input_modalities max: {enc_input_modalities.max()}")
+        print(f"[DEBUG] Number of modalities: {len(self.modalities)}")
+        
+        mod_emb = self.enc_mod_emb(enc_input_modalities)
+        print(f"[DEBUG] mod_emb shape: {mod_emb.shape}")
+        
         # Sum the modality embeddings to the token embeddings.
-        x = x + self.enc_mod_emb(enc_input_modalities)
+        x = x + mod_emb
 
         # Sum the positional embeddings to the token embeddings.
         enc_posembs = self.pos_emb[enc_input_positions]

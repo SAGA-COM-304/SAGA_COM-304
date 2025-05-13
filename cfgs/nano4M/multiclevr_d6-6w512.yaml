@@ -5,29 +5,29 @@ output_dir: ./outputs/auto # Set to auto to use the run_name
 
 # Global variables used throughout the config
 global_vars:
-  batch_size: 128 # per GPU (512 global batch size)
-  modalities: ["tok_rgb@256", "tok_depth@256",'tok_audio', 'tok_videof1','tok_videof2', 'tok_videof3', 'tok_videof4','tok_videof5', "scene_desc"] # TODO: adapt Input and output modalities
-  vocab_sizes: [64000, 64000, 64000,50304] # TODO: adapt Vocab sizes for each modality
-  max_seq_lens: [256, 256, 256, 256] #TODO: adjust per-modality max token counts
-  input_alphas: [1.0, 1.0, 1.0, 1.0] # Input dirichlet alpha values for each modality
-  target_alphas: [1.0, 1.0, 1.0, 1.0] # Target dirichlet alpha values for each modality
+  batch_size: 32 # per GPU (128 global batch size)
+  modalities: ["tok_rgb@256", "tok_depth@256",'tok_audio'] # TODO: adapt Input and output modalities
+  vocab_sizes: [64000, 64000, 64000] # TODO: adapt Vocab sizes for each modality
+  max_seq_lens: [256, 256, 256] #TODO: adjust per-modality max token counts
+  input_alphas: [1.0, 1.0, 1.0] # Input dirichlet alpha values for each modality
+  target_alphas: [1.0, 1.0, 1.0] # Target dirichlet alpha values for each modality
   input_tokens_range: [1, 128] # Min and max encoder tokens during training
   target_tokens_range: [1, 128] # Min and max decoder tokens during training
 
 # Training
 batch_size: ${global_vars.batch_size}
-total_tokens: 5000 # in millions of tokens
-warmup_tokens: 500 # in millions of tokens
-num_tokens_per_sample: 256 #TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
-lr: 0.0006 # Max learning rate
-min_lr: 0.000001 # Min learning rate after cosine decay
-weight_decay: 0.05 # AdamW weight decay
-clip_grad: 1.0 # Gradient clipping norm
-dtype: fp16 # Precision. Choose fp16 on V100s, bf16 on A100s or later. In case of instability, try fp32.
+total_tokens: 10 # in millions of tokens (réduit pour le test)
+warmup_tokens: 1 # in millions of tokens (réduit pour le test)
+num_tokens_per_sample: 256
+lr: 0.0006
+min_lr: 0.000001
+weight_decay: 0.05
+clip_grad: 1.0
+dtype: fp16
 
 # Eval
-eval_freq: 100 # in millions of tokens
-save_ckpt_freq: 1000 # in millions of tokens
+eval_freq: 1 # in millions of tokens (réduit pour le test)
+save_ckpt_freq: 5 # in millions of tokens (réduit pour le test)
 
 # Logging
 log_wandb: True
@@ -58,7 +58,7 @@ model_config:
 # Train loader config
 train_loader_config:
   _target_: nanofm.data.multimodal.create_multimodal_masked_dataloader
-  root_dir: /work/com-304/datasets/clevr_com_304/
+  root_dir: /work/com-304/SAGA/tokens_13_05
   split: train
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
@@ -69,22 +69,22 @@ train_loader_config:
   target_alphas: ${global_vars.target_alphas}
   input_tokens_range: ${global_vars.input_tokens_range}
   target_tokens_range: ${global_vars.target_tokens_range}
-  sample_from_k_augmentations: 10
+  sample_from_k_augmentations: 2
   text_tokenizer_path: gpt2
   text_max_length: 256
   batch_size: ${global_vars.batch_size}
   infinite: True
-  num_workers: 10
+  num_workers: 4
   pin_memory: True
   shuffle: True
-  drop_last: True
+  drop_last: False
   distributed: True
 
 # Eval loader config
 eval_loader_config:
   _target_: nanofm.data.multimodal.create_multimodal_masked_dataloader
-  root_dir: /work/com-304/datasets/clevr_com_304/
-  split: val
+  root_dir: /work/com-304/SAGA/tokens_13_05
+  split: eval
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
@@ -97,7 +97,7 @@ eval_loader_config:
   text_tokenizer_path: gpt2
   text_max_length: 256
   batch_size: ${global_vars.batch_size}
-  num_workers: 10
+  num_workers: 4
   pin_memory: True
   shuffle: False
   drop_last: False
