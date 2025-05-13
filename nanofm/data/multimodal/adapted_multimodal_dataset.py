@@ -111,12 +111,16 @@ class AdaptedMultimodalDataset(Dataset):
             ext = self.modality_extensions[modality]
             file_path = os.path.join(self.root_dir, self.split, modality, f"{file_name}{ext}")
 
-            if  modality in ['tok_audio', 'tok_videof1','tok_videof2', 'tok_videof3', 'tok_videof4','tok_videof5'] :
+            if modality in ['video','audio',"rgb","depth"]:
+                print(f"[DEBUG] {modality} raw data type: {data.dtype}")
+                print(f"[DEBUG] {modality} raw data min: {data.min()}")
+                print(f"[DEBUG] {modality} raw data max: {data.max()}")
                 data = np.load(file_path)[augmentation_idx]
                 tensor = torch.from_numpy(data).long()
-            elif modality in ['video','audio']:
-                data = np.load(file_path)[augmentation_idx]
-                tensor = torch.from_numpy(data).long()
+                print(f"[DEBUG] {modality} final tensor type: {tensor.dtype}")
+                print(f"[DEBUG] {modality} final tensor min: {tensor.min()}")
+                print(f"[DEBUG] {modality} final tensor max: {tensor.max()}")
+
             elif 'scene_desc' in modality:
                 with open(file_path, 'r') as f:
                     captions = json.load(f)

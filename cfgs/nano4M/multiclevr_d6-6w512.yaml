@@ -6,8 +6,8 @@ output_dir: ./outputs/auto # Set to auto to use the run_name
 # Global variables used throughout the config
 global_vars:
   batch_size: 128 # per GPU (512 global batch size)
-  modalities: ["tok_rgb@256", "tok_depth@256",'tok_audio', 'tok_videof1','tok_videof2', 'tok_videof3', 'tok_videof4','tok_videof5', "scene_desc"] # TODO: adapt Input and output modalities
-  vocab_sizes: [64000, 64000, 64000,50304] # TODO: adapt Vocab sizes for each modality
+  modalities: ["rgb", "depth", "audio", "video"] # TODO: adapt Input and output modalities
+  vocab_sizes: [64000, 64000, 64000, 64000] # TODO: adapt Vocab sizes for each modality
   max_seq_lens: [256, 256, 256, 256] #TODO: adjust per-modality max token counts
   input_alphas: [1.0, 1.0, 1.0, 1.0] # Input dirichlet alpha values for each modality
   target_alphas: [1.0, 1.0, 1.0, 1.0] # Target dirichlet alpha values for each modality
