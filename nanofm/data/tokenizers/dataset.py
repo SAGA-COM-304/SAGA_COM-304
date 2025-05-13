@@ -71,11 +71,10 @@ class MyImageDataset(Dataset):
         self.ts_column = ts_column
         self.group_column = group_column
 
-
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
 
-        tqdm.pandas(desc="Loading data")
+        tqdm.pandas(desc="Loading data") # TODO : Askip je peux enlever le tri ici
         df = pd.read_csv(csv_file)
         valid = df.progress_apply(
             lambda row: (
@@ -119,27 +118,6 @@ class MyImageDataset(Dataset):
     def __len__(self):
         return len(self.df)
     
-    def select_frames(self, video_tensor: torch.Tensor) -> Tuple[torch.Tensor, int]:
-        """
-        Selects a fixed number of frames around the midpoint, with time-shift sampling.
-        Return : 
-        The selected frames of the video and the indice of the 'Rgb image' that will be used alone.
-        """
-        total = video_tensor.size(1)
-        mid = total // 2
-        fps = total / self.DURATION
-        step = max(1, int(self.TIME_SHIFT * fps))
-
-        before = (self.NUM_FRAMES - 1) // 2
-        after = self.NUM_FRAMES - 1 - before
-
-        indices = [mid] + \
-                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
-                  [min(mid + i * step, total - 1) for i in range(1, after + 1)]
-
-        indices = sorted(indices)
-        return video_tensor[:, indices, :, :], mid
-
     def _init_models(self):
         """Initialize models lazily once and cache them"""
         if not hasattr(self, '_depth_model_initialized'):
@@ -157,8 +135,8 @@ class MyImageDataset(Dataset):
             A dictionary containing the following keys:
             - 'frames': The selected frames of the video. (Shape: (C, T, H, W))
             - 'rgb': The RGB image of the central frame. (Shape: (C, H, W))
-            - 'depth': The depth map of the central frame.
-            - 'audios': The audio data.
+            - 'depth': The depth map of the central frame. (Shape: (1, H, W))
+            - 'audios': The audio data. 
             - 'labels': The class label.
             - 'ids': The video clip name.
             - 'groups': The group name.
@@ -172,21 +150,33 @@ class MyImageDataset(Dataset):
         group = row[self.group_column]
 
         # Load and transform video frames
-        start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+
+        # Calculate frame indices to load
+        mid = total_frames // 2
+        step = max(1, int(self.TIME_SHIFT * fps))
+        before = (self.NUM_FRAMES - 1) // 2
+        after = self.NUM_FRAMES - 1 - before
+        indices = [mid] + \
+                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
+                  [min(mid + i * step, total_frames - 1) for i in range(1, after + 1)]
+        indices = sorted(indices)
+
         frames = []
         raw = []
-        while True:
+        for idx in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
             ret, frame = cap.read()
-            if not ret:
-                break
-            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            raw.append(img)  # needed because we compute depth and normal on the raw images.
-            frames.append(self.transform(img))
+            if ret:
+                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                raw.append(img)
+                frames.append(self.transform(img))
         cap.release()
         video_tensor = torch.stack(frames, dim=1)
-        selected, central_idx = self.select_frames(video_tensor)
-        print(f"Video frames loaded and transformed in {time.time() - start_time:.2f} seconds")
+        selected = video_tensor
+        central_idx = len(frames) // 2
     
         # Select the frame for depth and normal computation
         pil_central = raw[central_idx].resize((self.IMG_SIZE, self.IMG_SIZE), Image.BILINEAR)
@@ -283,7 +273,11 @@ if __name__ == "__main__":
     # Save one sample of the dataset to check the unnormalization
     sample = dataset[0]
     rgb = dataset.unnormalize(sample['rgb'])
-    save_frames(rgb, save_path)
+    save_frames(rgb, os.path.join(save_path, 'rgb'))
+
+    # Save frames
+    frames = sample['frames'].permute(1, 0, 2, 3)
+    save_frames(dataset.unnormalize(frames), os.path.join(save_path, 'frames'))
 
 
     
