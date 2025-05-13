@@ -14,6 +14,8 @@ import numpy as np
 from tqdm import tqdm
 import time
 
+from nanofm.data.utils import save_frames
+
 
 class MyImageDataset(Dataset):
 
@@ -150,6 +152,17 @@ class MyImageDataset(Dataset):
             self._depth_model_initialized = True
 
     def __getitem__(self, idx: int) -> dict:
+        """
+        Returns:
+            A dictionary containing the following keys:
+            - 'frames': The selected frames of the video. (Shape: (C, T, H, W))
+            - 'rgb': The RGB image of the central frame. (Shape: (C, H, W))
+            - 'depth': The depth map of the central frame.
+            - 'audios': The audio data.
+            - 'labels': The class label.
+            - 'ids': The video clip name.
+            - 'groups': The group name.
+        """
         self._init_models()
 
         row = self.df.iloc[idx]
@@ -182,7 +195,6 @@ class MyImageDataset(Dataset):
         rgb_im = video_tensor[:, central_idx, :, :]
     
         # Depth
-        start_time = time.time()
         with torch.no_grad():
             inp = self.depth_proc(images=pil_central, return_tensors='pt').to(self.device)
             depth_pred = self.depth_model(**inp).predicted_depth[0]
@@ -190,10 +202,8 @@ class MyImageDataset(Dataset):
                               align_corners=False).squeeze(0)
         depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
         depth = depth.cpu()
-        print(f"Depth computed in {time.time() - start_time:.2f} seconds")
     
         # Load and process audio
-        start_time = time.time()
         audio_path = os.path.join(self.audio_dir, f'{name}_{ts}.wav')
         with wave.open(audio_path, 'rb') as wav_file:
             # Get audio properties
@@ -222,7 +232,6 @@ class MyImageDataset(Dataset):
         else:
             pad = self.TARGET_LEN - wav.numel()
             wav = torch.cat([wav, torch.zeros(pad)], dim=0)
-        print(f"Audio loaded and processed in {time.time() - start_time:.2f} seconds")
     
         return {
             'frames': selected,
@@ -234,6 +243,22 @@ class MyImageDataset(Dataset):
             'groups': group,
         }
 
+    def unnormalize(self, tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Reverses the normalization process applied to a tensor.
+        This method takes a normalized tensor and applies the inverse transformation
+        to restore the original scale of the data using the stored mean and standard
+        deviation values.
+        Args:
+            tensor (torch.Tensor): The normalized tensor to be unnormalized. Shape: (B, C, H, W)
+                where B is the batch size, C is the number of channels, H is the height, and W is the width.
+        Returns:
+            torch.Tensor: The unnormalized tensor with the same shape as the input.
+        """
+        
+        return tensor * torch.tensor(self.STD).view(1, 3, 1, 1) + torch.tensor(self.MEAN).view(1, 3, 1, 1)
+    
+
 if __name__ == "__main__":
     dataset = MyImageDataset(
         data_path='/work/com-304/SAGA/raw',
@@ -241,6 +266,7 @@ if __name__ == "__main__":
         device=torch.device('cuda')
     )
 
+    # Try loading a few samples
     for i in range(5):
         sample = dataset[i]
         print(f"Sample {i}:")
@@ -251,5 +277,13 @@ if __name__ == "__main__":
         print(f"  Label: {sample['labels']}")
         print(f"  ID: {sample['ids']}")
         print(f"  Group: {sample['groups']}")
+
+    save_path = '/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/dataset'
+    
+    # Save one sample of the dataset to check the unnormalization
+    sample = dataset[0]
+    rgb = dataset.unnormalize(sample['rgb'])
+    save_frames(rgb, save_path)
+
 
     
