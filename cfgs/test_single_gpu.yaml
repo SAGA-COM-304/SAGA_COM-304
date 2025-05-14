@@ -1,39 +1,39 @@
-# Designed to be run on 4xV100-32GB GPUs
+# Configuration pour 2 GPUs basée sur multiclevr_d6-6w512
 
-run_name: auto # Auto-generate a run name
-output_dir: ./outputs/auto # Set to auto to use the run_name
+run_name: auto
+output_dir: ./outputs/auto
 
-# Global variables used throughout the config
+# Global variables
 global_vars:
-  batch_size: 128 # per GPU (512 global batch size)
-  modalities: ["rgb", "depth", "audio", "video"] # TODO: adapt Input and output modalities
-  vocab_sizes: [64000, 64000, 64000, 64000] # TODO: adapt Vocab sizes for each modality
-  max_seq_lens: [256, 256, 256, 256] #TODO: adjust per-modality max token counts
-  input_alphas: [1.0, 1.0, 1.0, 1.0] # Input dirichlet alpha values for each modality
-  target_alphas: [1.0, 1.0, 1.0, 1.0] # Target dirichlet alpha values for each modality
-  input_tokens_range: [1, 128] # Min and max encoder tokens during training
-  target_tokens_range: [1, 128] # Min and max decoder tokens during training
+  batch_size: 64  # batch size par GPU (128 global batch size)
+  modalities: ["rgb", "depth", "audio", "video"]
+  vocab_sizes: [64000, 64000, 64000, 64000]
+  max_seq_lens: [256, 256, 256, 256]
+  input_alphas: [1.0, 1.0, 1.0, 1.0]  # Activé pour toutes les modalités
+  target_alphas: [1.0, 1.0, 1.0, 1.0]  # Activé pour toutes les modalités
+  input_tokens_range: [1, 128]
+  target_tokens_range: [1, 128]
 
 # Training
 batch_size: ${global_vars.batch_size}
-total_tokens: 5000 # in millions of tokens
-warmup_tokens: 500 # in millions of tokens
-num_tokens_per_sample: 256 #TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
-lr: 0.0006 # Max learning rate
-min_lr: 0.000001 # Min learning rate after cosine decay
-weight_decay: 0.05 # AdamW weight decay
-clip_grad: 1.0 # Gradient clipping norm
-dtype: fp16 # Precision. Choose fp16 on V100s, bf16 on A100s or later. In case of instability, try fp32.
+total_tokens: 5000  # en millions de tokens
+warmup_tokens: 500  # en millions de tokens
+num_tokens_per_sample: 256
+lr: 0.0006
+min_lr: 0.000001
+weight_decay: 0.05
+clip_grad: 1.0
+dtype: fp16
 
 # Eval
-eval_freq: 100 # in millions of tokens
-save_ckpt_freq: 1000 # in millions of tokens
+eval_freq: 100  # en millions de tokens
+save_ckpt_freq: 1000  # en millions de tokens
 
 # Logging
 log_wandb: True
-wandb_project: COM304_nano4M # wandb project name
-wandb_entity: SAGA_COM-304 # WANDB entity/team name
-wandb_run_name: auto # Set to auto to use the run_name
+wandb_project: COM304_nano4M
+wandb_entity: SAGA_COM-304
+wandb_run_name: auto
 
 # Model config
 model_config:
@@ -49,10 +49,10 @@ model_config:
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
-  dim: 512 # Model dimension
-  enc_depth: 6 # Number of encoder layers
-  dec_depth: 6 # Number of decoder layers
-  head_dim: 64 # Dim of each attention head
+  dim: 512
+  enc_depth: 6
+  dec_depth: 6
+  head_dim: 64
   per_modality_loss_avg: True
 
 # Train loader config
@@ -63,8 +63,8 @@ train_loader_config:
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
-  overlap_vocab: True # Use the same vocab for all modalities
-  overlap_posembs: True # Use the same pos embeddings for all modalities
+  overlap_vocab: True
+  overlap_posembs: True
   input_alphas: ${global_vars.input_alphas}
   target_alphas: ${global_vars.target_alphas}
   input_tokens_range: ${global_vars.input_tokens_range}
@@ -88,8 +88,8 @@ eval_loader_config:
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
-  overlap_vocab: True # Use the same vocab for all modalities
-  overlap_posembs: True # Use the same pos embeddings for all modalities
+  overlap_vocab: True
+  overlap_posembs: True
   input_alphas: ${global_vars.input_alphas}
   target_alphas: ${global_vars.target_alphas}
   input_tokens_range: ${global_vars.input_tokens_range}
@@ -101,4 +101,4 @@ eval_loader_config:
   pin_memory: True
   shuffle: False
   drop_last: False
-  distributed: True
+  distributed: True 

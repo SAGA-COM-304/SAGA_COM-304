@@ -105,25 +105,21 @@ class AdaptedMultimodalDataset(Dataset):
 
         data_dict = {}
 
-        augmentation_idx = np.random.randint(0, self.sample_from_k_augmentations)
-
         for modality in self.modalities:
             ext = self.modality_extensions[modality]
             file_path = os.path.join(self.root_dir, self.split, modality, f"{file_name}{ext}")
 
             if modality in ['video','audio',"rgb","depth"]:
-                print(f"[DEBUG] {modality} raw data type: {data.dtype}")
-                print(f"[DEBUG] {modality} raw data min: {data.min()}")
-                print(f"[DEBUG] {modality} raw data max: {data.max()}")
-                data = np.load(file_path)[augmentation_idx]
+                data = np.load(file_path)
+                num_augmentations = len(data)
+                augmentation_idx = np.random.randint(0, min(num_augmentations, self.sample_from_k_augmentations))
+                data = data[augmentation_idx]
                 tensor = torch.from_numpy(data).long()
-                print(f"[DEBUG] {modality} final tensor type: {tensor.dtype}")
-                print(f"[DEBUG] {modality} final tensor min: {tensor.min()}")
-                print(f"[DEBUG] {modality} final tensor max: {tensor.max()}")
-
             elif 'scene_desc' in modality:
                 with open(file_path, 'r') as f:
                     captions = json.load(f)
+                num_augmentations = len(captions)
+                augmentation_idx = np.random.randint(0, min(num_augmentations, self.sample_from_k_augmentations))
                 caption = captions[augmentation_idx]
                 tokenized = self.text_tokenizer(
                     caption, max_length=self.text_max_length, padding='max_length',
