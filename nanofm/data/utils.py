@@ -27,14 +27,35 @@ def infinite_iterator(loader, distributed=False, sampler=None):
             yield batch
 
 
-def save_frames(images: torch.Tensor, path: str = ".local_cache/frames"):
+def save_image(tensor_or_array, save_path):
     """
-    Save a batch of images to disk.
+    Saves a tensor or numpy array as a JPEG image.
+    
     Args:
-        images (torch.Tensor): The images tensor to save. Shape should be (B, C, H, W).
+        tensor_or_array: A tensor or numpy array of shape (3, H, W) with values in [0, 1].
+        save_path: Path where the image will be saved.
     """
-    os.makedirs(path, exist_ok=True)
-    images = images.permute(0, 2, 3, 1).cpu().numpy()  # Convert to (B, H, W, C)
-    images = (images * 255).astype(np.uint8)  # Convert to uint8
-    for i in range(images.shape[0]):
-        Image.fromarray(images[i]).save(f"{path}/frame_{i:04d}.png")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    # Convert tensor to numpy if needed
+    if isinstance(tensor_or_array, torch.Tensor):
+        # Move to CPU if on another device
+        tensor_or_array = tensor_or_array.detach().cpu()
+        # Convert to numpy
+        array = tensor_or_array.numpy()
+    else:
+        array = tensor_or_array
+    
+    # Ensure array is in the right range
+    array = np.clip(array, 0, 1)
+    
+    # Transpose from (C, H, W) to (H, W, C)
+    array = array.transpose(1, 2, 0)
+    
+    # Scale to [0, 255] and convert to uint8
+    array = (array * 255).astype(np.uint8)
+    
+    # Create a PIL Image and save
+    image = Image.fromarray(array)
+    image.save(save_path)
+    
+    print(f"Image saved to {save_path}")
