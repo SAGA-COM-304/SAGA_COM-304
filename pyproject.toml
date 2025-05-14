@@ -27,7 +27,8 @@ dependencies = [
     "torchaudio",
     "jsonlines",
     "pytube",
-    "notebook"
+    "notebook",
+    "pytest"
 ]
 
 [project.urls]
