@@ -10,17 +10,15 @@ from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 import torch.nn.functional as F
 import wave
 import numpy as np
-from tqdm import tqdm
+from typing import Tuple
 
 
 
 class MyImageDataset(Dataset):
-    MEAN = (0.48145466, 0.4578275, 0.40821073)
-    STD = (0.26862954, 0.26130258, 0.27577711)
     IMG_SIZE = 256
-    NUM_FRAMES = 5
+    NUM_FRAMES = 16
     DURATION = 3
-    TIME_SHIFT = 0.5
+    TIME_SHIFT = 0.07
     SAMPLE_RATE = 24_000
     TARGET_LEN = SAMPLE_RATE * DURATION
     DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
@@ -43,7 +41,6 @@ class MyImageDataset(Dataset):
         ts_column: str = 'timestamp',
         class_column: str = 'class',
         group_column: str = 'group_name',
-        hard_data: bool = False,
         device: torch.device = torch.device('cpu')
     ):
         """
@@ -92,25 +89,10 @@ class MyImageDataset(Dataset):
         # )
         
         self.df = df[valid].reset_index(drop=True)
-
-        if hard_data:
-            self.transform = T.Compose([
-                T.RandomResizedCrop((self.IMG_SIZE, self.IMG_SIZE)),
-                T.RandomApply([T.GaussianBlur(5, (0.1, 2.0))], p=0.8),
-                T.RandomApply([T.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                T.RandomGrayscale(p=0.2),
-                T.ToTensor(),
-                T.Normalize(
-                    mean=self.MEAN,
-                    std=self.STD
-                ),
-                T.RandomHorizontalFlip(),
-            ])
-        else:
-            self.transform = T.Compose([
-                T.Resize((self.IMG_SIZE, self.IMG_SIZE), T.InterpolationMode.BICUBIC),
-                T.ToTensor()
-            ])
+        self.transform = T.Compose([
+            T.Resize((self.IMG_SIZE, self.IMG_SIZE), T.InterpolationMode.BICUBIC),
+            T.ToTensor()
+        ])
 
         self.device = device
 
@@ -130,6 +112,20 @@ class MyImageDataset(Dataset):
                 .eval()
             )
             self._depth_model_initialized = True
+
+    def select_frames(self, video_tensor: torch.Tensor) -> Tuple[torch.Tensor, int]:
+        total = video_tensor.size(1)
+        mid = total // 2
+        fps = total / self.DURATION
+        step = max(1, int(self.TIME_SHIFT* fps))
+        before = (self.NUM_FRAMES - 1) // 2
+        after = self.NUM_FRAMES - 1 - before
+        indices = [mid] + \
+                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
+                  [min(mid + i * step, total - 1) for i in range(1, after + 1)]
+        
+        indices = sorted(indices)
+        return video_tensor[:, indices, :, :], mid
 
     def __getitem__(self, idx: int) -> dict:
         """
@@ -154,35 +150,20 @@ class MyImageDataset(Dataset):
         # Load and transform video frames
         # start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-
-        # Calculate frame indices to load
-        mid = total_frames // 2
-        step = max(1, int(self.TIME_SHIFT * fps))
-        before = (self.NUM_FRAMES - 1) // 2
-        after = self.NUM_FRAMES - 1 - before
-        indices = [mid] + \
-                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
-                  [min(mid + i * step, total_frames - 1) for i in range(1, after + 1)]
-        indices = sorted(indices)
-
+        
         frames = []
         raw = []
-        for idx in indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        while True:
             ret, frame = cap.read()
-            if ret:
-                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                print()
-                raw.append(img)
-                frames.append(self.transform(img))
+            if not ret:
+                break
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            raw.append(img)  # needed because we compute depth and normal on the raw images.
+            frames.append(self.transform(img))
         cap.release()
+
         video_tensor = torch.stack(frames, dim=1)
-
-
-        selected = video_tensor
-        central_idx = len(frames) // 2
+        selected, central_idx = self.select_frames(video_tensor)
     
         # Select the frame for depth and normal computation
         pil_central = raw[central_idx].resize((self.IMG_SIZE, self.IMG_SIZE), Image.BILINEAR)

@@ -3,7 +3,6 @@ import torch
 from cosmos_tokenizer.image_lib import ImageTokenizer as BaseImageTokenizer
 from huggingface_hub import snapshot_download
 from torchvision import transforms as T
-import numpy as np
 
 
 class ImageTokenizer:
@@ -40,11 +39,8 @@ class ImageTokenizer:
                                             dtype = "bfloat16"
                                           )
 
-        MEAN = 0.5
-        STD = 0.5
-
-        self.normalize_cosmos = T.Normalize(mean = MEAN,
-                                            std = STD)
+        self.normalize_cosmos = T.Normalize(mean = 0.5,
+                                            std = 0.5)
         
         self.denormalize_cosmos = T.Normalize(mean = -1.0,
                                               std = 2.0) 
@@ -64,12 +60,8 @@ class ImageTokenizer:
         """
         image = self.normalize_cosmos(image)                #map from [0,1] => [-1,1]
         image = image.to(self.device).to(torch.bfloat16)
-        if self.type == "continuous":
-            (latent,) = self.tokenizer.encode(image)
-            return latent
-        elif self.type == "discrete":
-            (indices, _) = self.tokenizer.encode(image)
-            return indices
+        (tokens,) = self.tokenizer.encode(image)
+        return tokens
         
 
     def decode(self, tokens: torch.Tensor) -> torch.Tensor:
@@ -105,7 +97,7 @@ if __name__ == "__main__":
 
     # ==== Print information
     print("RGB sample shape:", rgb_sample.shape)
-    print("RGB sample dtype:", rgb_sample.dtype) 
+    print("RGB sample dtype:", rgb_sample.dtype)
     print("RGB sample device:", rgb_sample.device)
     print("RGB sample min:", rgb_sample.min())
     print("RGB sample max:", rgb_sample.max())
