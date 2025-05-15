@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 import pandas as pd
 import os
+import cv2
+
 
 log_dir = Path("dataset_module/downloads/log_files")
 pattern = re.compile(r"ERROR: \[youtube\]\s+([^\s:]+):")
@@ -11,11 +13,23 @@ RATIO_EVAL = 0.1
 RATIO_TEST = 0.2
 RATIO_TRAIN = 1 - RATIO_EVAL - RATIO_TEST
 
+def _has_readable_frames(path: str) -> bool:
+        """
+        True  → OpenCV can decode at least one frame.
+        False → the file is empty / truncated / wrong codec / unreadable.
+        """
+        cap = cv2.VideoCapture(path)
+        ok, _ = cap.read()
+        cap.release()
+        return ok
+
 results_ids = set()
 
 file_column = 'video_clip_name'
+ts_column = 'timestamp'
 # names = ['video_clip_name','timestamp','class','group_name']
 csv_file = '/work/com-304/SAGA/vggsound.csv'
+path_to_videos = '/work/com-304/SAGA/raw/videos'
 test = 0
 
 for i in range(1, 21):
@@ -36,8 +50,10 @@ for i in range(1, 21):
 df = pd.read_csv(csv_file, header = 0)
 df = df[~df[file_column].isin(results_ids)].reset_index(drop=True)
 # TODO : Missing files (error but video exist)
-
-
+    
+print(os.path.join(path_to_videos, df[file_column][0]))
+mask = df.apply(lambda row: _has_readable_frames(os.path.join(path_to_videos, f"{row[file_column]}_{row[ts_column]}.mp4")), axis=1)
+df = df[mask].reset_index(drop=True)
 
 # AT THIS PART OUR DATASET IS CLEANED FROM ERRORS
 count = df['class'].value_counts()
@@ -96,7 +112,7 @@ print(stacked_df.shape, stacked_df['class'].value_counts())
 # Save balanced dataset
 # output_path = 'dataset_module/data/processed_data/balanced_vggsound.csv'
 # balanced_df.to_csv(output_path, index=False)
-# print(f"Saved balanced dataset to: {output_path}")
+# print(f"Saved balanced dataset to: {output_path}")    
 
 # Save test dataset
 # output_path = 'dataset_module/data/processed_data/test_vggsound.csv'
@@ -107,6 +123,10 @@ print(stacked_df.shape, stacked_df['class'].value_counts())
 # output_path = 'dataset_module/data/processed_data/eval_vggsound.csv'
 # eval_df.to_csv(output_path, index=False)
 # print(f"Saved eval dataset to: {output_path}")
+
+#Save clean dataset
+output_clean = 'dataset_module/data/processed_data/clean_vggsound.csv'
+df.to_csv(output_clean, index=False)
 
 
 # Save stacked dataset

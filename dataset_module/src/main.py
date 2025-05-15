@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import torch.multiprocessing as mp
 
 try:
-    import simpleaudio as sa
+    import git stas as sa
     AUDIO_PLAYBACK_AVAILABLE = True
 except ImportError:
     AUDIO_PLAYBACK_AVAILABLE = False
@@ -17,7 +17,7 @@ from nanofm.data.tokenizers.dataset import MyImageDataset
 #Normalisation constant
 MEAN = np.array([0.48145466, 0.4578275, 0.40821073])
 STD  = np.array([0.26862954, 0.26130258, 0.27577711])
-TARGET_SR = 16_000
+TARGET_SR = 24_000
 
 
 def worker_init_fn(worker_id: int):
