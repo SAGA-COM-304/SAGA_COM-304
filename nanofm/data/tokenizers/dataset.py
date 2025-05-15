@@ -8,7 +8,6 @@ import torchvision.transforms as T
 from torch.utils.data import Dataset
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 import torch.nn.functional as F
-from typing import Tuple
 import wave
 import numpy as np
 from tqdm import tqdm
@@ -74,14 +73,12 @@ class MyImageDataset(Dataset):
         self.video_dir = os.path.join(data_path, 'videos')
         self.audio_dir = os.path.join(data_path, 'audios')
 
-        tqdm.pandas(desc="Loading data") # TODO : Askip on peut enlever le tri ici
+        # tqdm.pandas(desc="Loading data") # TODO : Askip on peut enlever le tri ici
         df = pd.read_csv(csv_file)
-        valid = df.progress_apply(
+        valid = df.apply(
             lambda row: (
-                os.path.isfile(os.path.join(self.video_dir,
-                                            f"{row[file_column]}_{row[ts_column]}.mp4"))
-                and self._has_readable_frames(os.path.join(self.video_dir,
-                                            f"{row[file_column]}_{row[ts_column]}.mp4"))
+                os.path.isfile(
+                    os.path.join(self.video_dir, f"{row[file_column]}_{row[ts_column]}.mp4"))
             ),
             axis=1
         )
@@ -150,6 +147,7 @@ class MyImageDataset(Dataset):
         group = row[self.group_column]
 
         # Load and transform video frames
+        # start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -175,8 +173,7 @@ class MyImageDataset(Dataset):
                 frames.append(self.transform(img))
         cap.release()
         video_tensor = torch.stack(frames, dim=1)
-        selected = video_tensor
-        central_idx = len(frames) // 2
+        selected, central_idx = self.select_frames(video_tensor)
     
         # Select the frame for depth and normal computation
         pil_central = raw[central_idx].resize((self.IMG_SIZE, self.IMG_SIZE), Image.BILINEAR)
@@ -222,6 +219,7 @@ class MyImageDataset(Dataset):
         else:
             pad = self.TARGET_LEN - wav.numel()
             wav = torch.cat([wav, torch.zeros(pad)], dim=0)
+        # print(f"Audio loaded and processed in {time.time() - start_time:.2f} seconds")
     
         return {
             'frames': selected,
