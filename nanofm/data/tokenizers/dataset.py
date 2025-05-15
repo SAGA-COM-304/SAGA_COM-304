@@ -81,6 +81,16 @@ class MyImageDataset(Dataset):
             ),
             axis=1
         )
+        # valid = df.progress_apply(
+            # lambda row: (
+                # os.path.isfile(os.path.join(self.video_dir,
+                                            # f"{row[file_column]}_{row[ts_column]}.mp4"))
+                # and self._has_readable_frames(os.path.join(self.video_dir,
+                                            # f"{row[file_column]}_{row[ts_column]}.mp4"))
+            # ),
+            # axis=1
+        # )
+        
         self.df = df[valid].reset_index(drop=True)
 
         if hard_data:
@@ -164,10 +174,13 @@ class MyImageDataset(Dataset):
             ret, frame = cap.read()
             if ret:
                 img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                print()
                 raw.append(img)
                 frames.append(self.transform(img))
         cap.release()
         video_tensor = torch.stack(frames, dim=1)
+
+
         selected = video_tensor
         central_idx = len(frames) // 2
     

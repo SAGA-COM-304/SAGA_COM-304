@@ -2,6 +2,8 @@ import os
 import torch
 from cosmos_tokenizer.image_lib import ImageTokenizer as BaseImageTokenizer
 from huggingface_hub import snapshot_download
+from torchvision import transforms as T
+import numpy as np
 
 
 class ImageTokenizer:
@@ -38,6 +40,14 @@ class ImageTokenizer:
                                             dtype = "bfloat16"
                                           )
 
+        MEAN = 0.5
+        STD = 0.5
+
+        self.normalize_cosmos = T.Normalize(mean = MEAN,
+                                            std = STD)
+        
+        self.denormalize_cosmos = T.Normalize(mean = -1.0,
+                                              std = 2.0) 
 
     def encode(self, image: torch.Tensor) -> torch.Tensor:
         """
@@ -52,7 +62,7 @@ class ImageTokenizer:
                 type is "discrete", discrete indices are returned.
                 Shape: Cosmos-0.1-Tokenizer-CIhxw -> (B, H/h, W/w)
         """
-        # TODO: Adapt for 0..1
+        image = self.normalize_cosmos(image)                #map from [0,1] => [-1,1]
         image = image.to(self.device).to(torch.bfloat16)
         if self.type == "continuous":
             (latent,) = self.tokenizer.encode(image)
@@ -70,11 +80,12 @@ class ImageTokenizer:
         Returns:
             torch.Tensor: The decoded tensor in (Shape: (B, 3, H, W)) format. Range: [0...1].
         """
-        # TODO: Adapt for 0..1
-        return self.tokenizer.decode(tokens.to(self.device).to(torch.bfloat16)).clamp(-1, 1)
-    
+        output_decode = self.tokenizer.decode(tokens).clamp(-1, 1).to(torch.float32)
+        return self.denormalize_cosmos(output_decode)
+
 if __name__ == "__main__":
     from dataset import MyImageDataset
+    from nanofm.data.utils import save_image
 
     out_path = ".local_cache/image_tokenizer"
     os.makedirs(out_path, exist_ok=True)
@@ -86,13 +97,35 @@ if __name__ == "__main__":
                                     device=device)
     img_tok = ImageTokenizer(model_name="Cosmos-0.1-Tokenizer-DI16x16", device=device)
 
-    sample = img_dataset[0]
-    encoded_token = img_tok.encode(sample['rgb'])
-    assert encoded_token.shape == (1, 256, 256)  # Adjust based on your tokenizer's output shape
-    print(encoded_token.max)
-    print(encoded_token.min)
 
-    decoded_image = img_tok.decode(encoded_token)
-    assert decoded_image.shape == (1, 3, 256, 256)  # Adjust based on your tokenizer's output shape
+    # Test RGB
+    # ==== Choose an image
+    rgb_sample = img_dataset[0]["rgb"]
+    save_image(rgb_sample, os.path.join(out_path, "rgb_sample.jpg"))
+
+    # ==== Print information
+    print("RGB sample shape:", rgb_sample.shape)
+    print("RGB sample dtype:", rgb_sample.dtype) 
+    print("RGB sample device:", rgb_sample.device)
+    print("RGB sample min:", rgb_sample.min())
+    print("RGB sample max:", rgb_sample.max())
+
+    # ==== Encode
+    tokens = img_tok.encode(rgb_sample.unsqueeze(0))
+    print("Encoded RGB tokens shape:", tokens.shape)
+    print("Encoded RGB tokens dtype:", tokens.dtype)
+    print("Encoded RGB tokens device:", tokens.device)
+    print("Encoded RGB tokens min:", tokens.min())
+    print("Encoded RGB tokens max:", tokens.max())    
+
+    # ==== Decode
+    rgb_dec_sample = img_tok.decode(tokens)
+    print("Decoded RGB sample shape:", rgb_dec_sample.shape)
+    print("Decoded RGB sample dtype:", rgb_dec_sample.dtype)
+    print("Decoded RGB sample device:", rgb_dec_sample.device)
+    print("Decoded RGB sample min:", rgb_dec_sample.min())
+    print("Decoded RGB sample max:", rgb_dec_sample.max())
+    save_image(rgb_dec_sample.squeeze(0), os.path.join(out_path, "rgb_dec_sample.jpg"))
+    
     
     
