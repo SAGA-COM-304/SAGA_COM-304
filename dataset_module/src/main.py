@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import torch.multiprocessing as mp
 
 try:
-    import git stas as sa
+    import simpleaudio as sa
     AUDIO_PLAYBACK_AVAILABLE = True
 except ImportError:
     AUDIO_PLAYBACK_AVAILABLE = False
