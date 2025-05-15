@@ -8,16 +8,22 @@ import torchvision.transforms as T
 from torch.utils.data import Dataset
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 import torch.nn.functional as F
-from typing import Tuple
 import wave
 import numpy as np
 from tqdm import tqdm
-import time
 
-from nanofm.data.utils import save_frames
 
 
 class MyImageDataset(Dataset):
+    MEAN = (0.48145466, 0.4578275, 0.40821073)
+    STD = (0.26862954, 0.26130258, 0.27577711)
+    IMG_SIZE = 256
+    NUM_FRAMES = 5
+    DURATION = 3
+    TIME_SHIFT = 0.5
+    SAMPLE_RATE = 24_000
+    TARGET_LEN = SAMPLE_RATE * DURATION
+    DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
 
     def _has_readable_frames(self, path: str) -> bool:
         """
@@ -55,15 +61,7 @@ class MyImageDataset(Dataset):
             hard_data (bool, optional): Whether to apply data augmentation for hard data scenarios. Defaults to False.
             device (torch.device, optional): Device configuration for model and data processing. Defaults to 'cpu'.
         """
-        self.MEAN = (0.48145466, 0.4578275, 0.40821073)
-        self.STD = (0.26862954, 0.26130258, 0.27577711)
-        self.IMG_SIZE = 256
-        self.NUM_FRAMES = 5
-        self.DURATION = 3
-        self.TIME_SHIFT = 0.5
-        self.SAMPLE_RATE = 24_000
-        self.TARGET_LEN = self.SAMPLE_RATE * self.DURATION
-        self.DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
+        
 
 
         self.file_column = file_column
@@ -103,11 +101,7 @@ class MyImageDataset(Dataset):
         else:
             self.transform = T.Compose([
                 T.Resize((self.IMG_SIZE, self.IMG_SIZE), T.InterpolationMode.BICUBIC),
-                T.ToTensor(),
-                T.Normalize(
-                    mean=self.MEAN,
-                    std=self.STD
-                ),
+                T.ToTensor()
             ])
 
         self.device = device
@@ -133,9 +127,9 @@ class MyImageDataset(Dataset):
         """
         Returns:
             A dictionary containing the following keys:
-            - 'frames': The selected frames of the video. (Shape: (C, T, H, W))
-            - 'rgb': The RGB image of the central frame. (Shape: (C, H, W))
-            - 'depth': The depth map of the central frame. (Shape: (1, H, W))
+            - 'frames': The selected frames of the video. (Shape: (C, T, H, W)), Range: [0, 1]
+            - 'rgb': The RGB image of the central frame. (Shape: (C, H, W)), Range: [0, 1]
+            - 'depth': The depth map of the central frame. (Shape: (1, H, W)), Range: [0, 1]
             - 'audios': The audio data. 
             - 'labels': The class label.
             - 'ids': The video clip name.
@@ -175,7 +169,6 @@ class MyImageDataset(Dataset):
                 frames.append(self.transform(img))
         cap.release()
         video_tensor = torch.stack(frames, dim=1)
-        selected = video_tensor
         central_idx = len(frames) // 2
     
         # Select the frame for depth and normal computation
@@ -224,7 +217,7 @@ class MyImageDataset(Dataset):
             wav = torch.cat([wav, torch.zeros(pad)], dim=0)
     
         return {
-            'frames': selected,
+            'frames': video_tensor,
             'rgb': rgb_im,
             'depth': depth,
             'audios': wav,
@@ -233,51 +226,3 @@ class MyImageDataset(Dataset):
             'groups': group,
         }
 
-    def unnormalize(self, tensor: torch.Tensor) -> torch.Tensor:
-        """
-        Reverses the normalization process applied to a tensor.
-        This method takes a normalized tensor and applies the inverse transformation
-        to restore the original scale of the data using the stored mean and standard
-        deviation values.
-        Args:
-            tensor (torch.Tensor): The normalized tensor to be unnormalized. Shape: (B, C, H, W)
-                where B is the batch size, C is the number of channels, H is the height, and W is the width.
-        Returns:
-            torch.Tensor: The unnormalized tensor with the same shape as the input.
-        """
-        
-        return tensor * torch.tensor(self.STD).view(1, 3, 1, 1) + torch.tensor(self.MEAN).view(1, 3, 1, 1)
-    
-
-if __name__ == "__main__":
-    dataset = MyImageDataset(
-        data_path='/work/com-304/SAGA/raw',
-        csv_file='/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/small_vgg.csv',
-        device=torch.device('cuda')
-    )
-
-    # Try loading a few samples
-    for i in range(5):
-        sample = dataset[i]
-        print(f"Sample {i}:")
-        print(f"  Frames shape: {sample['frames'].shape}")
-        print(f"  RGB shape: {sample['rgb'].shape}")
-        print(f"  Depth shape: {sample['depth'].shape}")
-        print(f"  Audio shape: {sample['audios'].shape}")
-        print(f"  Label: {sample['labels']}")
-        print(f"  ID: {sample['ids']}")
-        print(f"  Group: {sample['groups']}")
-
-    save_path = '/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/dataset'
-    
-    # Save one sample of the dataset to check the unnormalization
-    sample = dataset[40]
-    rgb = dataset.unnormalize(sample['rgb'])
-    save_frames(rgb, os.path.join(save_path, 'rgb'))
-
-    # Save frames
-    frames = sample['frames'].permute(1, 0, 2, 3)
-    save_frames(dataset.unnormalize(frames), os.path.join(save_path, 'frames'))
-
-    # Save depth
-    save_frames(dataset.unnormalize(sample['depth']), os.path.join(save_path, 'depth'))
