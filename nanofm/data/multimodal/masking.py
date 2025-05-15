@@ -134,6 +134,8 @@ class SimpleMultimodalMasking(object):
         ) -> Dict[str, Any]:
         """
         Applies input and target masking to a dictionary of modalities.
+        For RGB and depth, applies full masking.
+        For other modalities (audio and video), uses all tokens as both input and target.
 
         Args:
             data_dict: Dictionary of modalities and the corresponding tokens
@@ -146,33 +148,56 @@ class SimpleMultimodalMasking(object):
         dec_tokens, dec_positions, dec_modalities = [], [], []
 
         for mod_idx, mod in enumerate(self.modalities):
-            num_tokens = data_dict[mod].shape[0]
-            n_input_tokens = input_token_budget[mod_idx]
-            n_target_tokens = target_token_budget[mod_idx]
+            # Ensure tensor is 1D
+            tokens = data_dict[mod]
+            if tokens.dim() > 1:
+                tokens = tokens.flatten()
+            num_tokens = tokens.shape[0]
             
-            # Sample input and target positions
-            noise = torch.rand(num_tokens)
-            ids_shuffle = torch.argsort(noise, dim=0)
-            input_pos = ids_shuffle[:n_input_tokens].sort()[0]
-            target_pos = ids_shuffle[n_input_tokens:n_input_tokens+n_target_tokens].sort()[0]
-            # Optionally shift the position indices such that each modality learns unique position embeddings
-            pos_idx_shift = 0 if self.overlap_posembs else self.max_seq_len_shifts[mod_idx]
-            enc_positions.append(input_pos + pos_idx_shift)
-            dec_positions.append(target_pos + pos_idx_shift)
+            if mod in ['rgb', 'depth']:
+                # Full masking for RGB and depth
+                n_input_tokens = input_token_budget[mod_idx]
+                n_target_tokens = target_token_budget[mod_idx]
+                
+                # Sample input and target positions
+                noise = torch.rand(num_tokens)
+                ids_shuffle = torch.argsort(noise, dim=0)
+                input_pos = ids_shuffle[:n_input_tokens].sort()[0]
+                target_pos = ids_shuffle[n_input_tokens:n_input_tokens+n_target_tokens].sort()[0]
+                
+                # Optionally shift the position indices
+                pos_idx_shift = 0 if self.overlap_posembs else self.max_seq_len_shifts[mod_idx]
+                enc_positions.append(input_pos + pos_idx_shift)
+                dec_positions.append(target_pos + pos_idx_shift)
 
-            # Get the corresponding input and target tokens
-            input_tokens, target_tokens = data_dict[mod][input_pos], data_dict[mod][target_pos]
-            enc_tokens.append(input_tokens)
-            dec_tokens.append(target_tokens)
+                # Get the corresponding input and target tokens
+                input_tokens, target_tokens = tokens[input_pos], tokens[target_pos]
+                enc_tokens.append(input_tokens)
+                dec_tokens.append(target_tokens)
 
-            # In case n_input_tokens+n_target_tokens was larger than num_tokens, let's recompute 
-            # the actual number of input and target tokens
-            n_input_tokens, n_target_tokens = input_pos.shape[0], target_pos.shape[0]
-            
-            # To decide which token to predict in the encoder and decoder, we pass modality indices 
-            # that are transformed into a modality embedding
-            enc_modalities.append(mod_idx * torch.ones(n_input_tokens, dtype=torch.long))
-            dec_modalities.append(mod_idx * torch.ones(n_target_tokens, dtype=torch.long))
+                # In case n_input_tokens+n_target_tokens was larger than num_tokens, recompute 
+                n_input_tokens, n_target_tokens = input_pos.shape[0], target_pos.shape[0]
+                
+                # Add modality indices
+                enc_modalities.append(mod_idx * torch.ones(n_input_tokens, dtype=torch.long))
+                dec_modalities.append(mod_idx * torch.ones(n_target_tokens, dtype=torch.long))
+            else:
+                # For audio and video, use all tokens as both input and target
+                # Optionally shift the position indices
+                pos_idx_shift = 0 if self.overlap_posembs else self.max_seq_len_shifts[mod_idx]
+                positions = torch.arange(num_tokens, device=tokens.device) + pos_idx_shift
+                
+                # Use all tokens for both input and target
+                enc_positions.append(positions)
+                dec_positions.append(positions)
+                
+                # Get all tokens
+                enc_tokens.append(tokens)
+                dec_tokens.append(tokens)
+                
+                # Add modality indices
+                enc_modalities.append(mod_idx * torch.ones(num_tokens, dtype=torch.long))
+                dec_modalities.append(mod_idx * torch.ones(num_tokens, dtype=torch.long))
                         
         # Concatenate all lists into tensors
         enc_tokens, dec_tokens = torch.cat(enc_tokens), torch.cat(dec_tokens)
