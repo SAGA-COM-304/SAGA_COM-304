@@ -19,15 +19,15 @@ from nanofm.data.tokenizers.video_image_tokenizer import VideoImageTokenizer
 
 # ── Configuration ─────────────────────────────────────────────────────── #
 DATASET_PATH = "/work/com-304/SAGA/raw"
-CSV_PATH = "nanofm/data/tokenizers/vggsound_valid/02.csv"
-OUTPUT_PATH = "tokens"
+CSV_PATH = "/work/com-304/SAGA/splitvgg/01.csv"
+OUTPUT_PATH = "/work/com-304/SAGA/tokens_16_05"
 IMAGE_MODEL_NAME = "Cosmos-0.1-Tokenizer-DI16x16"
 VIDEO_MODEL_NAME = "Cosmos-0.1-Tokenizer-DV8x8x8"
 BATCH_SIZE = 32
 DEVICE = "cuda"
 GROUP_COLUMN = "group_name"
 MODALITIES = "all"  # "all", "rgb", "depth", "audio", "video" or comma-separated like "rgb,audio"
-OVERWRITE = False
+OVERWRITE = True
 SKIP_EXISTING = True
 
 # ── helpers ────────────────────────────────────────────────────────────── #
@@ -88,7 +88,7 @@ def main():
         )
         print("Video tokenizer loaded.")
 
-    if "video_backup" in selected_modalities in selected_modalities:
+    if "video_backup" in selected_modalities:
         print("Loading video_backup tokenizer...")
         tokenizers["video_backup"] = VideoImageTokenizer(
             model_name=IMAGE_MODEL_NAME,
@@ -123,7 +123,7 @@ def main():
                     elif modality == "video":
                         group_dirs[group]["video"] = output_path / group / "tok_video@256"
                     elif modality == "video_backup":
-                        group_dirs[group]["video"] = output_path / group / "tok_video_backup@256"
+                        group_dirs[group]["video_backup"] = output_path / group / "tok_video_backup@256"
                 
                 # Create directories
                 for path in group_dirs[group].values():
