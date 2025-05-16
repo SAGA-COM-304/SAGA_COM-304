@@ -69,7 +69,7 @@ train_loader_config:
   target_alphas: ${global_vars.target_alphas}
   input_tokens_range: ${global_vars.input_tokens_range}
   target_tokens_range: ${global_vars.target_tokens_range}
-  sample_from_k_augmentations: 10
+  sample_from_k_augmentations: 1 # It was 10 before
   text_tokenizer_path: gpt2
   text_max_length: 256
   batch_size: ${global_vars.batch_size}

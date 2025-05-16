@@ -60,6 +60,7 @@ class ImageTokenizer:
         """
         image = self.normalize_cosmos(image)                #map from [0,1] => [-1,1]
         image = image.to(self.device).to(torch.bfloat16)
+        print(image.shape)
         (tokens, _) = self.tokenizer.encode(image)
         return tokens
         

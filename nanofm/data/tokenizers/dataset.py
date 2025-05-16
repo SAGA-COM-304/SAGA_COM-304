@@ -16,8 +16,8 @@ from typing import Tuple
 
 class MyImageDataset(Dataset):
     IMG_SIZE = 256
-    NUM_FRAMES = 16
-    DURATION = 3
+    NUM_FRAMES = 9
+    DURATION = 5
     TIME_SHIFT = 0.07
     SAMPLE_RATE = 24_000
     TARGET_LEN = SAMPLE_RATE * DURATION
@@ -139,6 +139,7 @@ class MyImageDataset(Dataset):
             - 'ids': The video clip name.
             - 'groups': The group name.
         """
+        
         self._init_models()
 
         row = self.df.iloc[idx]
@@ -191,7 +192,7 @@ class MyImageDataset(Dataset):
     
             # Read audio data
             raw_data = wav_file.readframes(n_frames)
-    
+
         # Convert bytes to numpy array
         audio_data = np.frombuffer(raw_data, dtype=np.int16)
     
@@ -200,7 +201,7 @@ class MyImageDataset(Dataset):
     
         # Convert to float and normalize
         wav = torch.from_numpy(audio_data.astype(np.float32) / 32768.0)
-    
+
         if sr != self.SAMPLE_RATE:
             wav = torchaudio.transforms.Resample(sr, self.SAMPLE_RATE)(wav)
     
