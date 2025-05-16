@@ -212,7 +212,7 @@ class MyImageDataset(Dataset):
         # print(f"Audio loaded and processed in {time.time() - start_time:.2f} seconds")
     
         return {
-            'frames': video_tensor,
+            'frames': selected,
             'rgb': rgb_im,
             'depth': depth,
             'audios': wav,
@@ -220,4 +220,3 @@ class MyImageDataset(Dataset):
             'ids': name,
             'groups': group,
         }
-
