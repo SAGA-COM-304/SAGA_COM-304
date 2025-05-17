@@ -80,7 +80,7 @@ if __name__ == "__main__":
     save_video(frames_sample, os.path.join(out_path, "video.gif"))
     # ==== Print information
     print("Frames sample shape:", frames_sample.shape)
-    print("Frames sample dtype:", frames_sample.dtype) 
+    print("Frames sample dtype:", frames_sample.dtype)
     print("Frames sample device:", frames_sample.device)
     print("Frames sample min:", frames_sample.min())
     print("Frames sample max:", frames_sample.max())
@@ -91,8 +91,7 @@ if __name__ == "__main__":
     print("Tokens dtype:", tokens.dtype)
     print("Tokens device:", tokens.device)
     print("Tokens min:", tokens.min())
-    print("Tokens max:", tokens.max()) 
-    print("Tokens: ", tokens)
+    print("Tokens max:", tokens.max())
 
     # ==== Decode
     vid_dec_sample = video_tok.decode(tokens)
@@ -103,6 +102,5 @@ if __name__ == "__main__":
     print("Decoded RGB sample min:", vid_dec_sample.min())
     print("Decoded RGB sample max:", vid_dec_sample.max())
     save_video(vid_dec_sample, os.path.join(out_path, "decod_video.gif"))
-
         
 
