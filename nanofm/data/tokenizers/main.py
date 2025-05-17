@@ -6,6 +6,7 @@ nanofm_root = current_file.parent.parent.parent
 sys.path.insert(0, str(nanofm_root))
 import argparse
 import torch.multiprocessing as mp
+import pandas as pd
 # import tempfile
 # import time
 # import shutil
@@ -15,6 +16,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typing import List
+
 
 from nanofm.data.tokenizers.dataset import MyImageDataset
 from data.tokenizers.image_tokenizer import ImageTokenizer
@@ -68,7 +70,6 @@ def main():
     if args.output.exists() and any(args.output.iterdir()) and not args.overwrite:
         sys.exit(f"{args.output} already exists; use --overwrite")
 
-    import pandas as pd
     df = pd.read_csv(args.csv)
     groupes = df[args.group_column].unique().tolist()
     group_dirs = {}
@@ -123,9 +124,6 @@ def main():
     # group_dirs = {}
 
     # Loop ---------------------------------------------------------------- #
-    MEAN_d = MEAN.to(args.device)
-    STD_d  = STD.to(args.device)
-
     executor = ThreadPoolExecutor(max_workers=4)
     count = 0
     for batch in dl : # tqdm(dl, desc="Tokenising"):
@@ -139,9 +137,8 @@ def main():
         frames = batch["frames"].to(args.device) if not args.disable_video else None
         groups = batch["groups"]
 
-        # 1. RGB → de-normalize then encode --------------------------------
-        rgb = rgb_n * STD_d + MEAN_d                  
-        rgb_codes = img_tok.encode(rgb)               
+        # 1. RGB → de-normalize then encode --------------------------------              
+        rgb_codes = img_tok.encode(rgb_n)
 
         # 2. Depth → duplicate 3 channels then encode -----------------------
         depth_3c  = depth.repeat(1, 3, 1, 1)
@@ -162,9 +159,8 @@ def main():
         # 5. Video ------------------------------------------------
         video_codes = None
         if vid_tok is not None and frames is not None:
-            # Denormalize frames for video 
-            frames_denorm = frames * STD_d.unsqueeze(2) + MEAN_d.unsqueeze(2)
-            video_codes = vid_tok.encode(frames_denorm)
+            # Denormalize frames for video
+            video_codes = vid_tok.encode(frames)
 
         # 6. Save per sample -----------------------------------------------
         

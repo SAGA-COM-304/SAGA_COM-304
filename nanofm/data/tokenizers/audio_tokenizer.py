@@ -1,103 +1,111 @@
-import subprocess, tempfile, argparse
-from pathlib import Path
-from typing import Union, Optional
+import torch
+from transformers import MimiModel
 
-import torch, torchaudio
-from transformers import AutoFeatureExtractor, MimiModel
-
-# --------------------------------------------------------------------
-# helpers
-# --------------------------------------------------------------------
-def _ensure_backend() -> None:
-    if not torchaudio.list_audio_backends():
-        raise RuntimeError(
-            "torchaudio didn't find any audio backend.\n"
-        )
-
-def _ffmpeg_extract(inp: Path, out: Path, start: float, dur: float, sr: int) -> None:
-    cmd = ["ffmpeg", "-y", "-ss", str(start), "-t", str(dur),
-           "-i", str(inp), "-ac", "1", "-ar", str(sr),
-           "-c:a", "pcm_s16le", str(out), "-loglevel", "error"]
-    subprocess.check_call(cmd)
-
-# --------------------------------------------------------------------
-# main class
-# --------------------------------------------------------------------
 class AudioTokenizer:
-    def __init__(self, target_sr: int = 24_000, device: str = "cpu"):
-        """
-        target_sr : 24 OOO Hz (asked by Mimi)
-        device    : cpu, cuda (scitas), mps (mac)
-        """
-        # _ensure_backend()
-        self.sr = target_sr
-        self.device = torch.device(device)
+    """Audio Tokenizer using Mimi model - Always returns padding mask for optimal decoding."""
+    
+    def __init__(self, device = torch.device("cpu")):
+        self.sr = 24_000
+        self.num_quantizers = 32
+        self.device = device
+        
+        # Load model and extractor
+        self.model = MimiModel.from_pretrained("kyutai/mimi").to(self.device)
 
-        # ↓ downloads only once
-        self.extractor = AutoFeatureExtractor.from_pretrained("kyutai/mimi") # normalizes .wav in tensor
-        self.model     = MimiModel.from_pretrained("kyutai/mimi").to(self.device)
-
-    # --------------- I/O WAV ----------------------------------------
-    def _load_any_audio(self, path: Path, start: float, dur: float) -> torch.Tensor:
-        """loads a video or a .Wav and returns a mono tensor (1,N) on CPU of 24 kHz."""
-
-        if path.suffix.lower() == ".wav": # if a .wav file
-            try:
-                wav, sr = torchaudio.load(path) #tries to load with torchaudio
-            except Exception:  # if it doesn't work it converts it with ffmpeg (WAV PCM + propre)
-                tmp = Path(tempfile.mktemp(suffix=".wav"))
-                _ffmpeg_extract(path, tmp, start, dur, self.sr)
-                wav, sr = torchaudio.load(tmp)
-                tmp.unlink(missing_ok=True)
-        else:  # if a video file ffmpeg the audio extract from the video
-            tmp = Path(tempfile.mktemp(suffix=".wav"))
-            _ffmpeg_extract(path, tmp, start, dur, self.sr)
-            wav, sr = torchaudio.load(tmp); tmp.unlink(missing_ok=True) # converts it to .wav
-
-        if sr != self.sr:
-            wav = torchaudio.functional.resample(wav, sr, self.sr)
-
-        if wav.shape[0] > 1:
-            wav = wav.mean(dim=0, keepdim=True)
-        return wav
-
-    # --------------- ENCODE ----------------------------------------
     def encode(
-        self,
-        audio: Union[str, Path, torch.Tensor],
-        start: float = 0.0,
-        dur: Optional[float] = None,
+        self, 
+        audio: torch.Tensor,
     ) -> torch.Tensor:
         """
-        audio : path (str/Path) or tensor (1, N) already at 24 kHz.
-        start/dur : start time of the video / duration
-        Returns a tensor int64 (frames, 32).
-        """
-        if isinstance(audio, (str, Path)):
-            wav = self._load_any_audio(Path(audio), start, dur or 1e9)
-        else:  # tensor déjà fourni
-            wav = audio
-        wav = wav.to(self.device)
+        Encode audio to discrete codes.
+        Always returns both codes and padding mask for optimal decoding.
 
-        feats  = self.extractor(raw_audio=wav.squeeze(0),
-                                sampling_rate=self.sr,
-                                return_tensors="pt").to(self.device)
+        Inputs:
+            audio = [Batch, SAMPLING_F * duration]
+        Returns:
+            Tuple of (codes, padding_mask)
+        """ 
 
-        codes  = self.model.encode(
-                    feats["input_values"], feats["padding_mask"]
-                 ).audio_codes.squeeze(0)         # (frames, 32)
-        return codes.detach().cpu()
+        audio = audio.unsqueeze(1).to(self.device) # [Batch, SAMPLING_F * duration] => [Batch, Channel = 1, Sampling_f * duration]
 
-    # --------------- DECODE ----------------------------------------
+        with torch.no_grad():
+            encoder_outputs = self.model.encode(audio, 
+                                                num_quantizers= self.num_quantizers)
+            codes = encoder_outputs.audio_codes
+            
+        return codes
+
     def decode(self, codes: torch.Tensor) -> torch.Tensor:
         """
-        codes : tensor (frames, 32) or (B, frames, 32). B -> batchsize
-        Returns a wav tensor (1, T) at 24 kHz (on CPU, detached).
+        Decode audio codes back to waveform
+        Inputs : 
+        codes = [Batch, codebook, frames] or [Batch]
+
+        Return:
+        audio = [batch, channels, time]
+
         """
-        if codes.dim() == 2:   # (frames,32) → (1,frames,32)
-            codes = codes.unsqueeze(0)
-        out = self.model.decode(codes.to(self.device)).audio_values
-        wav = out.squeeze(0) if out.dim() == 3 else out
-        return wav.detach().cpu()
+        
+        if codes.ndim == 2 : #Resize if output of model is of the form [Batch, num_quantizers * 63]
+            B, _ = codes.shape
+            codes = codes.reshape(B, self.num_quantizers, -1)
+        
+        with torch.no_grad():
+            decoder_outputs = self.model.decode(codes)
+            audio_values = decoder_outputs.audio_values
+            audio_values.squeeze(1)
+
+        return audio_values.detach()
+
+
+if __name__ == "__main__":
+    from dataset import MyImageDataset
+    from nanofm.data.utils import save_audio
+    import os
     
+
+    out_path = ".local_cache/audio_tokenizer"
+    os.makedirs(out_path, exist_ok=True)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    img_dataset = MyImageDataset(data_path="/work/com-304/SAGA/raw",
+                                    csv_file="/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/small_vgg.csv",
+                                    device=device)
+    audio_tok = AudioTokenizer(device=device)
+
+    # Test Audio
+    # ==== Choose an audio
+    audio_sample = img_dataset[2]["audios"]
+    save_audio(audio_sample, os.path.join(out_path, "audio_sample"))
+    # audio_sample2 = img_dataset[1]["audios"]
     
+    # audio_sample = torch.stack((audio_sample, audio_sample2))
+    
+    # ==== Print information
+    print("Audio sample shape:", audio_sample.shape) # 120_000
+    print("Audio sample dtype:", audio_sample.dtype) 
+    print("Audio sample device:", audio_sample.device) 
+    print("Audio sample min:", audio_sample.min())
+    print("Audio sample max:", audio_sample.max())
+
+    # ==== Encode
+    tokens = audio_tok.encode(audio_sample.unsqueeze(0))
+    # tokens = audio_tok.encode(audio_sample)
+    print("Tokens shape:", tokens.shape)
+    print("Tokens dtype:", tokens.dtype)
+    print("Tokens device:", tokens.device)
+    print("Tokens min:", tokens.min())
+    print("Tokens max:", tokens.max())
+
+    # ==== Decode
+    audio_dec_sample = audio_tok.decode(tokens)
+    print("Decoded Audio sample shape:", audio_dec_sample.shape)
+    print("Decoded Audio sample dtype:", audio_dec_sample.dtype)
+    print("Decoded Audio sample device:", audio_dec_sample.device)
+    print("Decoded Audio sample min:", audio_dec_sample.min())
+    print("Decoded Audio sample max:", audio_dec_sample.max())
+
+    save_audio(audio_dec_sample, os.path.join(out_path, "audio_dec_sample"))
+
+        

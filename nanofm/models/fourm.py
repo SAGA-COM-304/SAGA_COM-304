@@ -285,8 +285,8 @@ class FourM(nn.Module):
         return logits
 
     def compute_ce_loss(
-            self, 
-            logits: torch.Tensor, 
+            self,
+            logits: torch.Tensor,
             target_seq: torch.LongTensor, 
             padding_idx: int = -100,
             per_modality_loss_avg: bool = False,

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=multi_node_job
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --account=com-304
 #SBATCH --qos=com-304
 #SBATCH --gres=gpu:2
