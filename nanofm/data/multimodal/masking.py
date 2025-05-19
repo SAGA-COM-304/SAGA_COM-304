@@ -19,7 +19,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Dirichlet
 
-from .utils import to_unified_multimodal_vocab
+from nanofm.data.multimodal.utils import to_unified_multimodal_vocab
 
 
 class SimpleMultimodalMasking(object):
@@ -60,8 +60,8 @@ class SimpleMultimodalMasking(object):
         self.max_seq_lens = max_seq_lens
         self.input_alphas = torch.tensor(input_alphas)
         self.target_alphas = torch.tensor(target_alphas)
-        self.input_tokens_range = to_2tuple(input_tokens_range)
-        self.target_tokens_range = to_2tuple(target_tokens_range)
+        self.input_tokens_range = [to_2tuple(e) for e in input_tokens_range]
+        self.target_tokens_range = [to_2tuple(e) for e in target_tokens_range]
         self.overlap_vocab = overlap_vocab
         self.overlap_posembs = overlap_posembs
         self.include_unmasked_data_dict = include_unmasked_data_dict
@@ -73,7 +73,7 @@ class SimpleMultimodalMasking(object):
         self.input_dirichlet = Dirichlet(torch.clamp(self.input_alphas, min=eps))
         self.target_dirichlet = Dirichlet(torch.clamp(self.target_alphas, min=eps))
         
-    def input_token_budget(self, num_input_tokens: int, max_tokens: torch.Tensor) -> List[int]:
+    def input_token_budget(self, num_input_tokens: torch.Tensor, max_tokens: torch.Tensor) -> List[int]:
         """Sample the number of input tokens for each modality, i.e. the
         per-modality token budget.
 
@@ -83,17 +83,15 @@ class SimpleMultimodalMasking(object):
 
         Returns:
             Token budget for the input
+    
         """
+        #TODO: add maksing depending on modality
         # Get the number of tokens for each modality
-        input_token_budget = (self.input_dirichlet.sample() * num_input_tokens).floor().int()
-        diff = num_input_tokens - input_token_budget.sum()
-        # Adds the remaining tokens by sampling from the Dirichlet and taking the argmax
-        # This avoids adding tokens to modalities that shouldn't be sampled (i.e. with alphas ~=0)
-        input_token_budget += torch.bincount(self.input_dirichlet.sample((diff,)).argmax(dim=-1), minlength=len(input_token_budget))
+        dirichlet_sample = self.input_dirichlet.sample()
+        input_token_budget = (dirichlet_sample * num_input_tokens).floor().int()
 
         # If token budget is over max tokens for a given modality, set it to max
         input_token_budget = torch.clamp(input_token_budget, max=max_tokens)
-
         return input_token_budget.tolist()
 
     def target_token_budget(
@@ -116,10 +114,6 @@ class SimpleMultimodalMasking(object):
         max_tokens_remaining = max_tokens - torch.tensor(input_token_budget)
 
         target_token_budget = (self.target_dirichlet.sample() * num_target_tokens).floor().int()
-        diff = num_target_tokens - target_token_budget.sum()
-        # Adds the remaining tokens by sampling from the Dirichlet and taking the argmax
-        # This avoids adding tokens to modalities that shouldn't be sampled (i.e. with alphas ~=0)
-        target_token_budget += torch.bincount(self.target_dirichlet.sample((diff,)).argmax(dim=-1), minlength=len(target_token_budget))
 
         # If token budget is over max tokens for a given modality, set it to max
         target_token_budget = torch.clamp(target_token_budget, max=max_tokens_remaining)
@@ -180,7 +174,8 @@ class SimpleMultimodalMasking(object):
         enc_modalities, dec_modalities = torch.cat(enc_modalities), torch.cat(dec_modalities)
 
         # For batching, all sequences need the same length.
-        max_input_tokens, max_target_tokens = self.input_tokens_range[1], self.target_tokens_range[1]
+        # TODO On est laaaaa
+        max_input_tokens, max_target_tokens = self.input_tokens_range[3][1], self.target_tokens_range[3][1]
         enc_pad_length = max_input_tokens - enc_tokens.shape[0]
         dec_pad_length = max_target_tokens - dec_tokens.shape[0]
         enc_tokens = F.pad(enc_tokens, (0, enc_pad_length), mode='constant', value=0)
@@ -229,12 +224,18 @@ class SimpleMultimodalMasking(object):
         max_tokens = torch.tensor(self.max_seq_lens)
         
         # Sample number of input and target tokens
-        num_input_tokens = random.randint(*self.input_tokens_range)
-        num_target_tokens = random.randint(*self.target_tokens_range)
+        #num_input_tokens = random.randint(*self.input_tokens_range)
+        #num_target_tokens = random.randint(*self.target_tokens_range)
+        num_input_tokens = torch.tensor([random.randint(a, b) for a, b in self.input_tokens_range])
+        num_target_tokens = torch.tensor([random.randint(a, b) for a, b in self.target_tokens_range])
+        print(f"Input tokens: {num_input_tokens}")
+        print(f"Target tokens: {num_target_tokens}")
         
         # Get input and target per-modality token budgets
         input_token_budget = self.input_token_budget(num_input_tokens, max_tokens)
         target_token_budget = self.target_token_budget(input_token_budget, num_target_tokens, max_tokens)
+        print(f"Input token budget: {input_token_budget}")
+        print(f"Target token budget: {target_token_budget}")
             
         # Apply input and target masking
         masked_data_dict = self.perform_random_masking(data_dict, input_token_budget, target_token_budget)
@@ -243,3 +244,24 @@ class SimpleMultimodalMasking(object):
             masked_data_dict['unmasked_data_dict'] = data_dict
             
         return masked_data_dict
+
+if __name__ == "__main__":
+    mask = SimpleMultimodalMasking(
+        modalities=["tok_rgb@256", "tok_depth@256", "tok_audio@24_000", "tok_video@256"],
+        vocab_sizes= [64000, 64000, 2048, 64000],
+        max_seq_lens=[256, 256, 2016, 2048],
+        input_alphas=[1.0, 1.0, 1.0, 1.0],
+        target_alphas=[1.0, 1.0, 1.0, 1.0],
+        input_tokens_range=[[1, 128], [1, 128], [1, 1008], [1, 1024]],
+        target_tokens_range=[[1, 128], [1, 128], [1, 1008], [1, 1024]],
+    )
+    print("Masking object created successfully.")
+
+    data_dict = {
+        "tok_rgb@256": torch.randint(0, 64000, (256,)),
+        "tok_depth@256": torch.randint(0, 64000, (256,)),
+        "tok_audio@24_000": torch.randint(0, 2048, (2016,)),
+        "tok_video@256": torch.randint(0, 64000, (2048,))
+    }
+    mask(data_dict)
+    print("Masking applied successfully.")
