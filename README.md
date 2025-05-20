@@ -64,9 +64,19 @@ lsof -ti:<port_number>
 kill <pid>
 ```
 
+### Launch training on a node :
+
+```
+OMP_NUM_THREADS=1 torchrun --nproc_per_node=2 run_training.py --config cfgs/nano4M/SAGAnano4M.yaml
+```
+```
+sbatch submit_job_multi_node_scitas.sh cfgs/nano4M/SAGAnano4M.yaml
+```
+
 # Useful resources
 [Foundation Models repository](https://github.com/EPFL-VILAB/com-304-FM-project)
 
 [Overleaf Project](https://www.overleaf.com/read/brbpqrkfsnmn#35fa19)
 
 [Conventional Commits rules](https://www.conventionalcommits.org/en/v1.0.0/)
+

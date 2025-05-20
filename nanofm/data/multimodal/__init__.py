@@ -83,16 +83,12 @@ def create_multimodal_masked_dataloader(
         overlap_vocab=overlap_vocab,
         overlap_posembs=overlap_posembs,
     )
-    def combined_transforms(data_dict):
-        masked = masking_transforms(data_dict)
-        #TODO: We will add here the masking logic of the tokens of video and audio if needed
-        return masked
 
     dataset = AdaptedMultimodalDataset(
         root_dir=root_dir,
         split=split,
         modalities=modalities,
-        transforms=combined_transforms,
+        transforms=masking_transforms,
         sample_from_k_augmentations=sample_from_k_augmentations,
         text_tokenizer_path=text_tokenizer_path,
         text_max_length=text_max_length,
