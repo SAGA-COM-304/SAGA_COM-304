@@ -9,6 +9,7 @@ description = "saga"
 requires-python = ">=3.8"
 readme = {file = "README.md", content-type = "text/markdown"}
 dependencies = [
+    "ipython",
     "fourm @ git+https://github.com/apple/ml-4m.git@main#egg=fourm",
     "omegaconf",
     "hydra-core",
@@ -22,13 +23,15 @@ dependencies = [
     "yt-dlp",
     "torch",
     "torchvision",
+    "torchaudio",
     "transformers",
     "pillow",
-    "torchaudio",
     "jsonlines",
     "pytube",
     "notebook",
-    "pytest"
+    "pytest",
+    "jupyterlab",
+    "notebook",
 ]
 
 [project.urls]
