@@ -105,27 +105,16 @@ class AdaptedMultimodalDataset(Dataset):
 
         data_dict = {}
 
-        augmentation_idx = np.random.randint(0, self.sample_from_k_augmentations)
-
         for modality in self.modalities:
             ext = self.modality_extensions[modality]
             file_path = os.path.join(self.root_dir, self.split, modality, f"{file_name}{ext}")
 
-            if  modality in ['tok_audio', 'tok_videof1','tok_videof2', 'tok_videof3', 'tok_videof4','tok_videof5'] :
-                data = np.load(file_path)[augmentation_idx]
+            if modality in ["tok_rgb@256", "tok_depth@256"] :
+                data = np.load(file_path).flatten()
                 tensor = torch.from_numpy(data).long()
-            elif modality in ['video','audio']:
-                data = np.load(file_path)[augmentation_idx]
+            elif modality in ["tok_audio@24_000", "tok_video@256"]:
+                data = np.load(file_path).flatten()
                 tensor = torch.from_numpy(data).long()
-            elif 'scene_desc' in modality:
-                with open(file_path, 'r') as f:
-                    captions = json.load(f)
-                caption = captions[augmentation_idx]
-                tokenized = self.text_tokenizer(
-                    caption, max_length=self.text_max_length, padding='max_length',
-                    truncation=True, return_tensors='pt'
-                )
-                tensor = tokenized['input_ids'][0]
             else:
                 raise ValueError(f"Unknown modality: {modality}")
 

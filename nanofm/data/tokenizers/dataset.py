@@ -10,13 +10,18 @@ from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 import torch.nn.functional as F
 import wave
 import numpy as np
-from tqdm import tqdm
-import time
+from typing import Tuple
 
-from nanofm.data.utils import save_frames
 
 
 class MyImageDataset(Dataset):
+    IMG_SIZE = 256
+    NUM_FRAMES = 9
+    DURATION = 5
+    TIME_SHIFT = 0.07
+    SAMPLE_RATE = 24_000
+    TARGET_LEN = SAMPLE_RATE * DURATION
+    DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
 
     def _has_readable_frames(self, path: str) -> bool:
         """
@@ -36,7 +41,6 @@ class MyImageDataset(Dataset):
         ts_column: str = 'timestamp',
         class_column: str = 'class',
         group_column: str = 'group_name',
-        hard_data: bool = False,
         device: torch.device = torch.device('cpu')
     ):
         """
@@ -54,15 +58,7 @@ class MyImageDataset(Dataset):
             hard_data (bool, optional): Whether to apply data augmentation for hard data scenarios. Defaults to False.
             device (torch.device, optional): Device configuration for model and data processing. Defaults to 'cpu'.
         """
-        self.MEAN = (0.48145466, 0.4578275, 0.40821073)
-        self.STD = (0.26862954, 0.26130258, 0.27577711)
-        self.IMG_SIZE = 256
-        self.NUM_FRAMES = 5
-        self.DURATION = 3
-        self.TIME_SHIFT = 0.5
-        self.SAMPLE_RATE = 24_000
-        self.TARGET_LEN = self.SAMPLE_RATE * self.DURATION
-        self.DEPTH_MODEL_NAME = "depth-anything/Depth-Anything-V2-Small-hf"
+        
 
 
         self.file_column = file_column
@@ -82,30 +78,21 @@ class MyImageDataset(Dataset):
             ),
             axis=1
         )
+        # valid = df.progress_apply(
+            # lambda row: (
+                # os.path.isfile(os.path.join(self.video_dir,
+                                            # f"{row[file_column]}_{row[ts_column]}.mp4"))
+                # and self._has_readable_frames(os.path.join(self.video_dir,
+                                            # f"{row[file_column]}_{row[ts_column]}.mp4"))
+            # ),
+            # axis=1
+        # )
+        
         self.df = df[valid].reset_index(drop=True)
-
-        if hard_data:
-            self.transform = T.Compose([
-                T.RandomResizedCrop((self.IMG_SIZE, self.IMG_SIZE)),
-                T.RandomApply([T.GaussianBlur(5, (0.1, 2.0))], p=0.8),
-                T.RandomApply([T.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                T.RandomGrayscale(p=0.2),
-                T.ToTensor(),
-                T.Normalize(
-                    mean=self.MEAN,
-                    std=self.STD
-                ),
-                T.RandomHorizontalFlip(),
-            ])
-        else:
-            self.transform = T.Compose([
-                T.Resize((self.IMG_SIZE, self.IMG_SIZE), T.InterpolationMode.BICUBIC),
-                T.ToTensor(),
-                T.Normalize(
-                    mean=self.MEAN,
-                    std=self.STD
-                ),
-            ])
+        self.transform = T.Compose([
+            T.Resize((self.IMG_SIZE, self.IMG_SIZE), T.InterpolationMode.BICUBIC),
+            T.ToTensor()
+        ])
 
         self.device = device
 
@@ -126,18 +113,33 @@ class MyImageDataset(Dataset):
             )
             self._depth_model_initialized = True
 
+    def select_frames(self, video_tensor: torch.Tensor) -> Tuple[torch.Tensor, int]:
+        total = video_tensor.size(1)
+        mid = total // 2
+        fps = total / self.DURATION
+        step = max(1, int(self.TIME_SHIFT* fps))
+        before = (self.NUM_FRAMES - 1) // 2
+        after = self.NUM_FRAMES - 1 - before
+        indices = [mid] + \
+                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
+                  [min(mid + i * step, total - 1) for i in range(1, after + 1)]
+        
+        indices = sorted(indices)
+        return video_tensor[:, indices, :, :], mid
+
     def __getitem__(self, idx: int) -> dict:
         """
         Returns:
             A dictionary containing the following keys:
-            - 'frames': The selected frames of the video. (Shape: (C, T, H, W))
-            - 'rgb': The RGB image of the central frame. (Shape: (C, H, W))
-            - 'depth': The depth map of the central frame. (Shape: (1, H, W))
+            - 'frames': The selected frames of the video. (Shape: (C, T, H, W)), Range: [0, 1]
+            - 'rgb': The RGB image of the central frame. (Shape: (C, H, W)), Range: [0, 1]
+            - 'depth': The depth map of the central frame. (Shape: (1, H, W)), Range: [0, 1]
             - 'audios': The audio data. 
             - 'labels': The class label.
             - 'ids': The video clip name.
             - 'groups': The group name.
         """
+        
         self._init_models()
 
         row = self.df.iloc[idx]
@@ -149,29 +151,18 @@ class MyImageDataset(Dataset):
         # Load and transform video frames
         # start_time = time.time()
         cap = cv2.VideoCapture(os.path.join(self.video_dir, f'{name}_{ts}.mp4'))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-
-        # Calculate frame indices to load
-        mid = total_frames // 2
-        step = max(1, int(self.TIME_SHIFT * fps))
-        before = (self.NUM_FRAMES - 1) // 2
-        after = self.NUM_FRAMES - 1 - before
-        indices = [mid] + \
-                  [max(mid - i * step, 0) for i in range(1, before + 1)] + \
-                  [min(mid + i * step, total_frames - 1) for i in range(1, after + 1)]
-        indices = sorted(indices)
-
+        
         frames = []
         raw = []
-        for idx in indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        while True:
             ret, frame = cap.read()
-            if ret:
-                img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                raw.append(img)
-                frames.append(self.transform(img))
+            if not ret:
+                break
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            raw.append(img)  # needed because we compute depth and normal on the raw images.
+            frames.append(self.transform(img))
         cap.release()
+
         video_tensor = torch.stack(frames, dim=1)
         selected, central_idx = self.select_frames(video_tensor)
     
@@ -201,7 +192,7 @@ class MyImageDataset(Dataset):
     
             # Read audio data
             raw_data = wav_file.readframes(n_frames)
-    
+
         # Convert bytes to numpy array
         audio_data = np.frombuffer(raw_data, dtype=np.int16)
     
@@ -210,7 +201,7 @@ class MyImageDataset(Dataset):
     
         # Convert to float and normalize
         wav = torch.from_numpy(audio_data.astype(np.float32) / 32768.0)
-    
+
         if sr != self.SAMPLE_RATE:
             wav = torchaudio.transforms.Resample(sr, self.SAMPLE_RATE)(wav)
     
@@ -230,52 +221,3 @@ class MyImageDataset(Dataset):
             'ids': name,
             'groups': group,
         }
-
-    def unnormalize(self, tensor: torch.Tensor) -> torch.Tensor:
-        """
-        Reverses the normalization process applied to a tensor.
-        This method takes a normalized tensor and applies the inverse transformation
-        to restore the original scale of the data using the stored mean and standard
-        deviation values.
-        Args:
-            tensor (torch.Tensor): The normalized tensor to be unnormalized. Shape: (B, C, H, W)
-                where B is the batch size, C is the number of channels, H is the height, and W is the width.
-        Returns:
-            torch.Tensor: The unnormalized tensor with the same shape as the input.
-        """
-        
-        return tensor * torch.tensor(self.STD).view(1, 3, 1, 1) + torch.tensor(self.MEAN).view(1, 3, 1, 1)
-    
-
-if __name__ == "__main__":
-    dataset = MyImageDataset(
-        data_path='/work/com-304/SAGA/raw',
-        csv_file='/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/small_vgg.csv',
-        device=torch.device('cuda')
-    )
-
-    # Try loading a few samples
-    for i in range(5):
-        sample = dataset[i]
-        print(f"Sample {i}:")
-        print(f"  Frames shape: {sample['frames'].shape}")
-        print(f"  RGB shape: {sample['rgb'].shape}")
-        print(f"  Depth shape: {sample['depth'].shape}")
-        print(f"  Audio shape: {sample['audios'].shape}")
-        print(f"  Label: {sample['labels']}")
-        print(f"  ID: {sample['ids']}")
-        print(f"  Group: {sample['groups']}")
-
-    save_path = '/home/bousquie/COM-304-FM/SAGA_COM-304/.local_cache/dataset'
-    
-    # Save one sample of the dataset to check the unnormalization
-    sample = dataset[40]
-    rgb = dataset.unnormalize(sample['rgb'])
-    save_frames(rgb, os.path.join(save_path, 'rgb'))
-
-    # Save frames
-    frames = sample['frames'].permute(1, 0, 2, 3)
-    save_frames(dataset.unnormalize(frames), os.path.join(save_path, 'frames'))
-
-    # Save depth
-    save_frames(dataset.unnormalize(sample['depth']), os.path.join(save_path, 'depth'))
