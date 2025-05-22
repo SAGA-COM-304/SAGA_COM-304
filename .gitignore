@@ -15,7 +15,7 @@ __pycache__
 
 # Downloaded datasets
 dataset_module/downloads
-
+generated_outputs
 # Local configuration files
 import4cluster.sh
 send2cluster.sh
