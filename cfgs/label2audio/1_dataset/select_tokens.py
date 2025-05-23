@@ -3,7 +3,12 @@ import os
 import shutil
 from pathlib import Path
 
-def organize_files(csv_path, source_dir, dest_dir):
+def organize_files(
+        csv_path, 
+        source_dir, 
+        dest_dir,
+        modalities = ['tok_audio@24_000', 'tok_depth@256', 'tok_label', 'tok_rgb@256', 'tok_video@256', 'tok_video_backup@256']
+):
     """
     Organize files from source directory into train/test/eval structure.
     
