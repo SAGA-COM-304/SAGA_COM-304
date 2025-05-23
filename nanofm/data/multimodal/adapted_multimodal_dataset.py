@@ -109,7 +109,7 @@ class AdaptedMultimodalDataset(Dataset):
             ext = self.modality_extensions[modality]
             file_path = os.path.join(self.root_dir, self.split, modality, f"{file_name}{ext}")
 
-            if modality in ["tok_rgb@256", "tok_depth@256"] :
+            if modality in ["tok_rgb@256", "tok_depth@256", "tok_label"] :
                 data = np.load(file_path).flatten()
                 tensor = torch.from_numpy(data).long()
             elif modality in ["tok_audio@24_000", "tok_video@256"]:

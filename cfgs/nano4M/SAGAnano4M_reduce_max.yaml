@@ -9,14 +9,14 @@ global_vars:
   modalities: ["tok_rgb@256", "tok_label"] # TODO: adapt Input and output modalities
   vocab_sizes: [64000, 310] # TODO: adapt Vocab sizes for each modality
   max_seq_lens: [256, 1] # TODO: adjust per-modality max token counts
-  input_alphas: [1.0, 1.0] # Input dirichlet alpha values for each modality
-  target_alphas: [1.0, 1.0] # Target dirichlet alpha values for each modality
+  input_alphas: [25.6, 0.1] # Input dirichlet alpha values for each modality
+  target_alphas: [25.6, 0.1] # Target dirichlet alpha values for each modality
   input_tokens_range: [1, 128]  # Min and max encoder tokens during training
   target_tokens_range: [1, 128] # Min and max decoder tokens during training
 
 # Training
 batch_size: ${global_vars.batch_size}
-total_tokens: 5000 # in millions of tokens
+total_tokens: 5_000 # in millions of tokens
 warmup_tokens: 500 # in millions of tokens
 num_tokens_per_sample: 256 # TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
 lr: 0.006 # Max learning rate
