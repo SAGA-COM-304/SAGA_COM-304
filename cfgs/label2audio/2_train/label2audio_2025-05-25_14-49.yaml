@@ -5,7 +5,7 @@ output_dir: /work/com-304/SAGA/outputs/auto # Set to auto to use the run_name
 
 # Global variables used throughout the config
 global_vars:
-  batch_size: 8 # per GPU (512 global batch size)
+  batch_size: 16 # per GPU (512 global batch size)
   modalities: ["tok_label", "tok_audio@24_000"]
   vocab_sizes: [310, 2048]
   max_seq_lens: [1, 2016]
@@ -16,8 +16,10 @@ global_vars:
 
 # Training
 batch_size: ${global_vars.batch_size}
-total_tokens: 5000 # in millions of tokens
-warmup_tokens: 500 # in millions of tokens
+    # number of sample * sum of maxseqlen * number of epoch * k-augmentations
+    # 46696 * (2016 + 1) * 10 * 1 = ~946,000,000
+total_tokens: 1000 # in millions of tokens 
+warmup_tokens: 100 # in millions of tokens (10% of total tokens)
 num_tokens_per_sample: 2016 # TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
 lr: 0.0006 # Max learning rate
 min_lr: 0.000001 # Min learning rate after cosine decay
@@ -31,7 +33,7 @@ save_ckpt_freq: 1000 # in millions of tokens
 
 # Logging
 log_wandb: True
-wandb_project: COM304_nano4M # wandb project name
+wandb_project: 2M_audio&label # wandb project name
 wandb_entity: SAGA_COM-304 # WANDB entity/team name
 wandb_run_name: auto # Set to auto to use the run_name
 
@@ -50,15 +52,15 @@ model_config:
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
   dim: 512 # Model dimension
-  enc_depth: 6 # Number of encoder layers
-  dec_depth: 6 # Number of decoder layers
+  enc_depth: 12 # Number of encoder layers
+  dec_depth: 12 # Number of decoder layers
   head_dim: 64 # Dim of each attention head
   per_modality_loss_avg: True
 
 # Train loader config
 train_loader_config:
   _target_: nanofm.data.multimodal.create_multimodal_masked_dataloader
-  root_dir: /work/com-304/SAGA/TODO # TODO: To define when done
+  root_dir: /work/com-304/SAGA/tokens_2025-05-25_14-49/
   split: train
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
@@ -83,7 +85,7 @@ train_loader_config:
 # Eval loader config
 eval_loader_config:
   _target_: nanofm.data.multimodal.create_multimodal_masked_dataloader
-  root_dir: /work/com-304/SAGA/tokens_16_05/
+  root_dir: /work/com-304/SAGA/tokens_2025-05-25_14-49/
   split: eval
   modalities: ${global_vars.modalities}
   vocab_sizes: ${global_vars.vocab_sizes}
