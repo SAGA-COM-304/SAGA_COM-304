@@ -12,6 +12,7 @@ wandb
 __pycache__
 .ipynb_checkpoints
 .local_cache
+multi_node_job.*
 
 # Downloaded datasets
 dataset_module/downloads
