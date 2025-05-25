@@ -5,14 +5,14 @@ output_dir: /work/com-304/SAGA/outputs/auto # Set to auto to use the run_name
 
 # Global variables used throughout the config
 global_vars:
-  batch_size: 16 # per GPU (512 global batch size)
+  batch_size: 8 # per GPU (512 global batch size)
   modalities: ["tok_label", "tok_audio@24_000"]
   vocab_sizes: [310, 2048]
   max_seq_lens: [1, 2016]
   input_alphas: [1.0, 25.6] # Input dirichlet alpha values for each modality
   target_alphas: [1.0, 25.6] # Target dirichlet alpha values for each modality
-  input_tokens_range: [1, 1008]  # Min and max encoder tokens during training
-  target_tokens_range: [1, 1008] # Min and max decoder tokens during training
+  input_tokens_range: [1, 504]  # Min and max encoder tokens during training
+  target_tokens_range: [1, 504] # Min and max decoder tokens during training
 
 # Training
 batch_size: ${global_vars.batch_size}
@@ -20,7 +20,7 @@ batch_size: ${global_vars.batch_size}
     # 46696 * (2016 + 1) * 10 * 1 = ~946,000,000
 total_tokens: 1000 # in millions of tokens 
 warmup_tokens: 100 # in millions of tokens (10% of total tokens)
-num_tokens_per_sample: 2016 # TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
+num_tokens_per_sample: 1008 # TODO set to total input+output token budget# Number of tokens per sample to count towards the total tokens seen. 128 in + 128 out
 lr: 0.0006 # Max learning rate
 min_lr: 0.000001 # Min learning rate after cosine decay
 weight_decay: 0.05 # AdamW weight decay
