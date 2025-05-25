@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import os
 import shutil
@@ -46,20 +47,23 @@ def organize_files(
             
             if os.path.exists(source_file):
                 shutil.copy2(source_file, dest_file)
-                print(f"Copied {source_file} to {dest_file}")
             else:
                 print(f"Warning: Source file not found: {source_file}")
 
 if __name__ == "__main__":
+
+    print('Argument list:', sys.argv)
     # Configure paths
-    csv_path = "small_vgg_250522_14_22.csv"
-    source_dir = "/work/com-304/SAGA/tokens_16_05"  # Adjust this to your source directory
-    dest_dir = "/work/com-304/SAGA/tokens_16_05_small_vgg_250522"  # Adjust this to your desired destination
+    csv_path = "small_vgg_250522_14_22.csv" if len(sys.argv) < 2 else sys.argv[1]
+    source_dir = "/work/com-304/SAGA/tokens_16_05"  if len(sys.argv) < 3 else sys.argv[2]
+    dest_dir = "/work/com-304/SAGA/tokens_16_05_small_vgg_250522"  if len(sys.argv) < 4 else sys.argv[3]
     
+    print("Starting dataset organization...")
     # Execute organization
     organize_files(csv_path, source_dir, dest_dir)
     
     # Print summary
     print("\nDataset organization complete!")
-    print(f"Source directory: {source_dir}")
     print(f"Destination directory: {dest_dir}")
+    pd.read_csv(csv_path).to_csv(f"{dest_dir}/dataset.csv", index=False)
+    print(f"CSV file saved: {dest_dir}/dataset.csv")
