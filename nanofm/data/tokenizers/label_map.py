@@ -12,6 +12,16 @@ class Maplabel:
         self.label2id  = self._build_map()
         self.nb_label  = len(self.label2id)
 
+
+    def decode(self, token):
+        """
+        Convert a token (int) into his label (str).
+        """
+        if token in self.label2id.values():
+            return list(self.label2id.keys())[list(self.label2id.values()).index(token)]
+        else:
+            raise ValueError(f"Token {token} not found in label map.")
+
     def _build_map(self):
         df = pd.read_csv(self.path_csv, header=None, names=['label','count'])
         df = df.sort_values(['count','label'], ascending=[False,True])
