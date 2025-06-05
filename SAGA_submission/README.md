@@ -3,10 +3,12 @@
 This repository contains the code, demonstration notebook, and setup instructions for the SAGA group's project in the COM-304 course at EPFL. The project focuses on training and evaluating a version of Nano4m extended with video and audio modalities.
 
 You will find:
-- All source code in the `nanofm/` directory
-- A demonstration notebook (`demo.ipynb`) to showcase and test the models
+- All main source code in the `nanofm/` directory (tokenizers, model, utilities, etc.)
+- The demonstration notebook (`demo.ipynb`) to showcase and test the models (pre-computed)
+- All configuration files for training and experiments in `cfgs/`
+- Main dataset handling and downloading scripts in `dataset_module/src/downloader/`
 - Environment setup instructions for SCITAS and local use
-- Training and data usage guidelines
+- Training, data usage, and model checkpoint location guidelines
 
 ---
 
