@@ -37,7 +37,7 @@ class AdaptedMultimodalDataset(Dataset):
             text_max_length: int = 256,
     ):
         """
-        Simple multimodal dataset.
+        Adapted multimodal dataset for audio and video modalities.
 
         Assumptions:
         - Each modality contains the same filenames in {root_dir}/{split}/{modality}/{file_name}.{ext}

@@ -13,12 +13,11 @@ class VideoTokenizer:
         """
         Initializes the VideoTokenizer with the specified model name and device.
 
-        Arguments:
-            model_name (str): Name of the image tokenizer model to use.
-                Cosmos-0.1-Tokenizer-DV4x8x8, (Shape out: (B, C, H/4, W/4))
-                Cosmos-0.1-Tokenizer-DV8x8x8,
-                Cosmos-0.1-Tokenizer-DV8x16x16,
+        Args:
+            model_name (str): Name of the video tokenizer model to use.
+                Examples: Cosmos-0.1-Tokenizer-DV4x8x8, Cosmos-0.1-Tokenizer-DV8x8x8, Cosmos-0.1-Tokenizer-DV8x16x16
             device (torch.device): Device on which the computation will occur.
+            cache_dir (str): Directory to cache the model files.
         """
         self.model_name = model_name
         self.type = "continuous" if "CV" in model_name else "discrete" if "DV" in model_name else None
@@ -46,7 +45,11 @@ class VideoTokenizer:
 
     def encode(self, video: torch.Tensor) -> torch.Tensor:
         """
-        # input_tensor should be  of shape : [B, C, T, H, W]
+        Encode a video tensor into tokens.
+        Args:
+            video (torch.Tensor): Input tensor of shape [B, C, T, H, W].
+        Returns:
+            torch.Tensor: Encoded tokens.
         """
         video = self.normalize_cosmos(video)
         input_tensor = video.to(self.device).to(torch.bfloat16)
@@ -54,6 +57,13 @@ class VideoTokenizer:
         return tokens
 
     def decode(self, tokens: torch.Tensor) -> torch.Tensor:
+        """
+        Decode tokens back to a video tensor.
+        Args:
+            tokens (torch.Tensor): Encoded tokens.
+        Returns:
+            torch.Tensor: Decoded video tensor.
+        """
         output_tensor = self.tokenizer.decode(tokens).clamp(-1,1).to(torch.float32)
         return self.denormalize_cosmos(output_tensor)
         
@@ -61,7 +71,6 @@ class VideoTokenizer:
 if __name__ == "__main__":
     from dataset import MyImageDataset
     from nanofm.data.utils import save_video
-
 
     out_path = ".local_cache/video_tokenizer"
     os.makedirs(out_path, exist_ok=True)

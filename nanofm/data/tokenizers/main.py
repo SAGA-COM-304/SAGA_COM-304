@@ -44,12 +44,15 @@ def worker_init_fn(worker_id: int):
 
 # ── main ───────────────────────────────────────────────────────────────── #
 def main():
+    """
+    Main function to tokenize RGB, depth, audio, and video data from a dataset.
+    """
     dataset_path = "/work/com-304/SAGA/raw"
     csv_path = "/work/com-304/SAGA/balanced_vggsound.csv"
     image_model_name = "Cosmos-0.1-Tokenizer-DI8x8"
     video_model_name = "Cosmos-0.1-Tokenizer-DV4x8x8"
 
-    ap = argparse.ArgumentParser("tokenise RGB + depth + audio + video")
+    ap = argparse.ArgumentParser("Tokenize RGB, depth, audio, and video data")
     ap.add_argument("--data_root", default=dataset_path, type=Path,
                     help="raw/{videos,audios} + csv")
     ap.add_argument("--csv", default=csv_path, type=Path)
@@ -86,7 +89,7 @@ def main():
 
 
 
-    # Dataset & loader ---------------------------------------------------- #
+    # Dataset & loader ---------------------------------------------------
     #print("Loading dataset...")
     ds = MyImageDataset(data_path=str(args.data_root),
                         csv_file=str(args.csv),
@@ -101,93 +104,58 @@ def main():
                     worker_init_fn=worker_init_fn,
                     drop_last=False)
 
-    # Tokenizers ---------------------------------------------------------- #
+    # Tokenizers ----------------------------------------------------------
     img_tok = ImageTokenizer(model_name=args.image_model,
                              device=torch.device(args.device))
     aud_tok = AudioTokenizer(device="cpu")
     
-    # Tokenizer vidéo (optionnel)
+
     vid_tok = None
     if not args.disable_video:
         #print("Loading video tokenizer...")
         vid_tok = VideoTokenizer(model_name=args.video_model,
                                 device=torch.device(args.device))
         #print("Video tokenizer loaded.")
-
-    # Normal-map model --------------------------------------
-    # proc_norm = AutoImageProcessor.from_pretrained(NORMAL_REPO, subfolder=NORMAL_ENTRY)
-    # model_norm = (AutoModel.from_pretrained(NORMAL_REPO, subfolder=NORMAL_ENTRY)
-    #               .to(args.device).eval())
-
-    # Output dirs par groupe --------------------------------------------- #
-    # On créera les dossiers dynamiquement selon les groupes trouvés
-    # group_dirs = {}
-
-    # Loop ---------------------------------------------------------------- #
     executor = ThreadPoolExecutor(max_workers=4)
     count = 0
     for batch in dl : # tqdm(dl, desc="Tokenising"):
 
         futs = []
-
         keys  : List[str] = batch["ids"]
         rgb_n = batch["rgb"].to(args.device)          
         depth = batch["depth"].to(args.device)        
         audio = batch["audios"].cpu()
         frames = batch["frames"].to(args.device) if not args.disable_video else None
         groups = batch["groups"]
-
-        # 1. RGB → de-normalize then encode --------------------------------              
         rgb_codes = img_tok.encode(rgb_n)
-
-        # 2. Depth → duplicate 3 channels then encode -----------------------
         depth_3c  = depth.repeat(1, 3, 1, 1)
         depth_codes = img_tok.encode(depth_3c)
-
-        # 3. Normal-map ----------------------------------------
-        # with torch.no_grad():
-        #     inp = proc_norm(images=(rgb), return_tensors="pt").to(args.device)
-        #     n_pred = model_norm(**inp).last_hidden_state
-        #     n_pred = F.interpolate(n_pred, size=(256, 256),
-        #                            mode="bilinear", align_corners=False)
-        # n_img = (n_pred + 1) / 2
-        # normal_codes = img_tok.encode(n_img)
-
-        # 4. Audio ----------------------------------------------------------
         audio_codes = [aud_tok.encode(a) for a in audio]
 
-        # 5. Video ------------------------------------------------
+
         video_codes = None
         if vid_tok is not None and frames is not None:
-            # Denormalize frames for video
+
             video_codes = vid_tok.encode(frames)
 
-        # 6. Save per sample -----------------------------------------------
-        
         print(f"Processing batch {count}")
         count += 1
         for i, (k, group) in enumerate(zip(keys, groups)):
-            # chemins de sauvegarde
+
             path_rgb   = group_dirs[group]['rgb']   / f"{k}.npy"
             path_depth = group_dirs[group]['depth'] / f"{k}.npy"
             path_aud   = group_dirs[group]['audio'] / f"{k}.npy"
 
-            # soumettez chaque sauvegarde comme tâche asynchrone
+
             futs.append(executor.submit(np.save, path_rgb,   rgb_codes[i].cpu().numpy().astype(np.int32)))
             futs.append(executor.submit(np.save, path_depth, depth_codes[i].cpu().numpy().astype(np.int32)))
             futs.append(executor.submit(np.save, path_aud,   audio_codes[i].cpu().numpy().astype(np.int32)))
-
             if video_codes is not None:
                 path_vid = group_dirs[group]['video'] / f"{k}.npy"
                 futs.append(executor.submit(np.save, path_vid, video_codes[i].cpu().numpy().astype(np.int32)))
-
-        # 3) (Optionnel) attendez que tout soit écrit avant de passer au batch suivant
         for f in futs:
             f.result()
-
-    # 4) À la fin du main, fermez le pool pour libérer les ressources
     executor.shutdown()
-
 
 if __name__ == "__main__":
     mp.set_start_method('spawn')

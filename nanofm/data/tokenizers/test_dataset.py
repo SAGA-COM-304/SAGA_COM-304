@@ -25,4 +25,3 @@ def test_dataset_type(dataset):
     assert (sample['rgb'] >= 0).all()
     assert (sample['rgb'] <= 1).all()
 
-    #TODO: Add tests for the other keys in the sample dictionary

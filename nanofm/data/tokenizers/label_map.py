@@ -6,7 +6,8 @@ from pathlib import Path
 class Maplabel:
     def __init__(self, path_csv):
         """
-        path_csv: CSV (sans header) à deux colonnes [label, count]
+        Args:
+            path_csv (str): Path to a CSV file (no header) with two columns [label, count].
         """
         self.path_csv = path_csv
         self.label2id  = self._build_map()
@@ -18,6 +19,11 @@ class Maplabel:
         return {lab: idx for idx, lab in enumerate(df['label'].tolist())}
 
     def add_special_char(self, char:str):
+        """
+        Add a special character to the label mapping if not already present.
+        Args:
+            char (str): The special character to add.
+        """
         if char not in self.label2id:
             self.label2id[char] = self.nb_label
             self.nb_label += 1
@@ -31,43 +37,33 @@ class Maplabel:
                             sep:         str    = None,
                             modality:    str    = 'tok_label'):
         """
-        Pour chaque ligne de data_csv:
-         - construit sample_id = "_".join(id_cols)
-         - mappe class → [SOF] + ids + [EOF]
-         - sauve dans {output_root}/{group_name}/{modality}/{sample_id}.npy
+        For each row in data_csv:
+         - Build sample_id = "_".join(id_cols)
+         - Map class → ids
+         - Save to {output_root}/{group_name}/{modality}/{sample_id}.npy
+        Args:
+            data_csv (str): Path to the CSV file containing the data to tokenize.
+            output_root (str): Root directory to save the .npy files.
+            id_cols (list): List of columns to build the sample_id.
+            group_col (str): Column name for grouping.
+            label_col (str): Column name for the label.
+            sep (str): Separator for splitting the label (if multiple classes per sample).
+            modality (str): Name of the modality (used as subfolder name).
         """
-        # 1) ajoute les tokens spéciaux
-        # for s in ('SOF','EOF','PAD'):
-            # self.add_special_char(s)
-
-        # 2) prépare dataframe et dossier racine
         df        = pd.read_csv(data_csv)
         out_root  = Path(output_root)
 
-        # 3) itère échantillons
         for _, row in df.iterrows():
-            # a) ID unique
             sample_id = "_".join(str(row[c]) for c in id_cols)
-
-            # b) extract tokens
             raw = row[label_col]
             toks = raw.split(sep) if sep else [str(raw)]
-
-            # c) map to IDs
-            # ids = [self.label2id['SOF']] + [self.label2id[t] for t in toks] + [self.label2id['EOF']]
             ids = [self.label2id[t] for t in toks]
             arr = np.array(ids, dtype=np.uint32)
-
-            # d) chemin de sortie
             grp_dir = out_root / str(row[group_col]) / modality
             grp_dir.mkdir(parents=True, exist_ok=True)
-
-            # e) save
             np.save(grp_dir / f"{sample_id}.npy", arr)
-            # print(grp_dir / f"{sample_id}.npy")
-            # print(arr)
 
-        print(f"✔ {len(df)} fichiers .npy créés sous {output_root}/*/{modality}/")
+        print(f"✔ {len(df)} .npy files created under {output_root}/*/{modality}/")
 
 if __name__ == "__main__":
     dict_csv    = "/home/godey/SAGA_COM-304/dataset_module/data/processed_data/label_counts.csv"
@@ -81,6 +77,6 @@ if __name__ == "__main__":
         id_cols      = ['video_clip_name'],
         group_col    = 'group_name',
         label_col    = 'class',
-        sep          = None,        # ou ' ' si plusieurs classes
-        modality     = 'tok_label'  # nom du dossier souhaité
+        sep          = None,        # or ' ' if multiple classes
+        modality     = 'tok_label'  # desired folder name
     )
