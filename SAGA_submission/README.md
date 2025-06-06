@@ -3,10 +3,13 @@
 This repository contains the code, demonstration notebook, and setup instructions for the SAGA group's project in the COM-304 course at EPFL. The project focuses on training and evaluating a version of Nano4m extended with video and audio modalities.
 
 You will find:
+- Our website : https://saga-com-304.github.io/
+- Our final report
 - All main source code in the `nanofm/` directory (tokenizers, model, utilities, etc.)
 - The demonstration notebook (`demo.ipynb`) to showcase and test the models (pre-computed)
 - All configuration files for training and experiments in `cfgs/`
 - Main dataset handling and downloading scripts in `dataset_module/src/downloader/`
+- The `pyproject.toml` file containing all project dependencies (no need for requirements.txt)
 - Environment setup instructions for SCITAS and local use
 - Training, data usage, and model checkpoint location guidelines
 
@@ -21,6 +24,7 @@ You will find:
 ├── demo.ipynb
 ├── run_training.py
 ├── submit_job_multi_node_scitas.sh
+├── final_report.pdf
 ├── small_vgg.csv (example of how our csv for preparing the data were structered)
 ├── img/
 │   └── epfl.png
@@ -59,20 +63,24 @@ You will find:
 └── dataset_module/ (we added)
     └── src/
         └── downloader/
-            ├── split_batch_csv.py (our csv maker file)
-            └── download_RR.sh (our downloading script, see more below)
-```
+        │   ├── split_batch_csv.py (our csv maker file)
+        │   └── download_RR.sh (our downloading script, see more below)
+        │
+        └── data/
+            └──processed_data/
+                └──label_counts.csv (csv useful for our demo)
+``` 
 
 ---
 
 ## Environment Setup (SCITAS)
 
-In the root of the project, execute the following commands to set up your environment with all required libraries :
+In the root of the project, execute the following commands to set up your environment with all required libraries:
 
 ```bash
 # Create and activate a conda environment
-conda create -n saga304 python=3.10 -y
-conda activate saga304
+conda create -n <env_name> python=3.10 -y
+conda activate <env_name>
 
 # Upgrade pip
 pip install --upgrade pip
@@ -80,20 +88,32 @@ pip install --upgrade pip
 # Install project in editable mode (if needed)
 pip install -e . --upgrade
 
-# Install Cosmos Tokenizer (if needed)
-pip install git+https://github.com/NVIDIA/Cosmos-Tokenizer.git --no-dependencies
-
-# Install the requirements
-conda install -c conda-forge --file requirements.txt --yes
-
 # For any packages not available via conda, use pip:
 pip install -r requirements.txt
+
+# Install Cosmos Tokenizer (if needed)
+pip install git+https://github.com/NVIDIA/Cosmos-Tokenizer.git --no-dependencies
 
 # Install ffmpeg (for audio/video processing)
 conda install -c conda-forge ffmpeg --yes
 
 # (Optional) Register the Jupyter kernel for this environment
 python -m ipykernel install --user --name saga304 --display-name "nano4M kernel (saga304)"
+```
+
+---
+
+## Environments already set-up on Scitas
+
+It is possible that you will run into some issues regarding the compatibilty of the versions of some packages trying to download all the packages, for this reason, we created an environement with everything in it. You will find it under :
+
+```
+/work/com-304/SAGA/.envs/EnvForTAs
+```
+
+simply activate it by running :
+```bash
+conda activate EnvForTAs
 ```
 
 ---
@@ -157,9 +177,16 @@ ssh -L 8888:<IP+Port> -l <SCITAS_username> izar.epfl.ch -f -N
 
 The `dataset_module/src/downloader` directory contains the main source code for dataset downloading, manipulating cookies with a Round Robin algorithm to allow the most efficient downloading from youtube without going over the threshold allowed by Youtube. It also contains a script that we used for csv manipulations.
 
+---
+
 
 ## Useful resources
 [Foundation Models repository](https://github.com/EPFL-VILAB/com-304-FM-project)
 
 [Overleaf Project](https://www.overleaf.com/read/brbpqrkfsnmn#35fa19)
 
+---
+
+Thank you for your work and we wish you all the best ! 
+
+The SAGA team
